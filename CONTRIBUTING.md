@@ -27,7 +27,7 @@ Bem-vindo(a)! Este guia define **como o time trabalha** neste repositório. Se �
 
 Um PR está pronto quando:
 
-- [ ] O CI está verde (gitleaks + ruff + pytest + build/smoke test da imagem Docker).
+- [ ] O CI está verde (gitleaks CLI + ruff + pytest + build/smoke test da imagem Docker).
 - [ ] Mudou regra de negócio? Tem **ao menos um teste** cobrindo a mudança.
 - [ ] Mudou modelo de dados? Tem migração Alembic (revisada à mão, não só o autogenerate) e ela roda em banco limpo (`alembic upgrade head` do zero).
 - [ ] Você testou manualmente o endpoint afetado (Swagger em `/docs` ou pelo biveto-app).
