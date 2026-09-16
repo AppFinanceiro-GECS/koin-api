@@ -1,0 +1,15 @@
+# Configuração do gitleaks — scan de segredos (CI + pre-commit)
+# Estende as regras padrão e permite apenas os placeholders de documentação.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholders de documentação e exemplos — não são segredos reais"
+regexes = [
+  '''SEU_TOKEN''',
+  '''biv_sua_chave[a-z_]*''',
+  '''sua-chave-secreta[a-z-]*''',
+  '''test-secret-key''',
+  '''dev-secret-key-change-in-production''',
+]

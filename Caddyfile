@@ -1,0 +1,10 @@
+{$API_DOMAIN} {
+	encode gzip zstd
+
+	# Uploads de faturas/cupons (MAX_UPLOAD_SIZE_MB=10 na API; folga para multipart)
+	request_body {
+		max_size 15MB
+	}
+
+	reverse_proxy api:8000
+}

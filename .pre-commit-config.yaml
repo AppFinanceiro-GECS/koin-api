@@ -1,0 +1,34 @@
+# Hooks de pre-commit — rodam automaticamente antes de cada commit.
+#
+# Setup (uma vez, com o venv ativo):
+#   pip install pre-commit
+#   pre-commit install
+#
+# Rodar manualmente em tudo: pre-commit run --all-files
+
+repos:
+  # Scan de segredos — bloqueia commit de chaves/tokens/senhas
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+
+  # Lint + formatação (mesmas regras do CI)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Higiene geral
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+        exclude: '\.(svg|mgc)$'
+      - id: trailing-whitespace
+        exclude: '\.md$'

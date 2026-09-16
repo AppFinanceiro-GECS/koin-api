@@ -1,0 +1,28 @@
+[project]
+name = "app-financeiro-backend"
+version = "0.1.0"
+description = "App de controle financeiro pessoal inteligente"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = [
+    "E501",  # linhas longas: line-length=100 ja cobre o razoavel
+    "E711",  # == None em filtros SQLAlchemy e operador sobrecarregado — nao trocar por "is"
+    "E712",  # == True idem (SQLAlchemy)
+    "E402",  # baseline: imports tardios intencionais (ciclos/lazy); revisar caso a caso
+    "UP042", # baseline: migrar (str, Enum) -> StrEnum e refactor amplo (backlog)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401"]   # barrels re-exportam simbolos
+"app/models/*.py" = ["F821"]  # forward references (strings) em relationships SQLAlchemy

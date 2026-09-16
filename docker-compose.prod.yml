@@ -1,0 +1,32 @@
+# Override de produção (VPS): Caddy na frente com HTTPS automático (Let's Encrypt).
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Requer API_DOMAIN no .env apontando (DNS A/AAAA) para o IP da VPS e portas 80/443 abertas.
+
+services:
+  db:
+    ports: !reset []
+
+  api:
+    ports: !reset []
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?defina API_DOMAIN no .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+volumes:
+  caddy_data:
+  caddy_config:

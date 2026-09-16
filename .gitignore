@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+venv/
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Banco / dados locais
+*.db
+*.sqlite3
+*.dump
+*.bundle
+uploads/
+local-samples/
+*.csv
+
+# Env e segredos
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+mcp-config.json
+.mcp.json
+
+# Docker
+docker-compose.override.yml
+
+# IDE / SO
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Agentes
+.claude/
+.codex/
