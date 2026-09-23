@@ -51,7 +51,7 @@ make prod-up     # docker compose -f docker-compose.yml -f docker-compose.prod.y
 
 O override de produção coloca o **Caddy** na frente com HTTPS automático (Let's Encrypt) e fecha as portas da API e do banco. Passo a passo, backup e atualização: **[docs/infra/DEPLOY.md](docs/infra/DEPLOY.md)**.
 
-A cada push na `main`, o CI publica a imagem em `ghcr.io/appfinanceiro-gecs/biveto-api` (`latest` e `sha-xxxxxxx`).
+A cada push, o CI publica a imagem em `ghcr.io/appfinanceiro-gecs/biveto-api`: da `main` com as tags `main` e `sha-xxxxxxx` (homologação), da `prod` com `prod`, `latest` e `sha-xxxxxxx` (produção). Fluxo de branches em [CONTRIBUTING.md](CONTRIBUTING.md#branches-main-e-prod).
 
 ## Desenvolvimento sem Docker
 

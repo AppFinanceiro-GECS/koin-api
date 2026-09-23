@@ -58,7 +58,7 @@ git pull
 make prod-up             # rebuild; as migrações rodam no start do container
 ```
 
-Usando a imagem do GHCR em vez de build local: coloque `API_IMAGE=ghcr.io/appfinanceiro-gecs/biveto-api:sha-xxxxxxx` no `.env` e rode
+Usando a imagem do GHCR em vez de build local: coloque `API_IMAGE=ghcr.io/appfinanceiro-gecs/biveto-api:sha-xxxxxxx` no `.env` (produção usa só tags `sha-` publicadas a partir da branch `prod`; as tags `main`/`prod`/`latest` são móveis e servem para homologação) e rode
 `docker compose -f docker-compose.yml -f docker-compose.prod.yml pull api && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build`.
 
 **Rollback:** aponte `API_IMAGE` para a tag `sha-` anterior e rode o mesmo comando. Se a versão nova trouxe migração, faça `alembic downgrade` antes (`docker compose exec api alembic downgrade -1`) ou restaure o backup.

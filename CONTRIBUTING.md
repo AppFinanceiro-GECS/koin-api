@@ -5,7 +5,7 @@ Bem-vindo(a)! Este guia define **como o time trabalha** neste repositório. Se �
 ## Fluxo de trabalho
 
 1. **Pegue uma tarefa** — trabalhe sempre a partir de uma issue do GitHub. Se a tarefa não existe como issue, crie uma primeiro (título claro + o que define "pronto"). Não comece trabalho grande sem alinhar com o mantenedor.
-2. **Crie uma branch a partir da `main`** (a `main` é a única branch base do projeto):
+2. **Crie uma branch a partir da `main`** (a `main` é a base de todo desenvolvimento; a `prod` só recebe promoções, veja [Branches](#branches-main-e-prod)):
    ```
    git checkout main && git pull
    git checkout -b feat/nome-curto-da-tarefa
@@ -22,6 +22,17 @@ Bem-vindo(a)! Este guia define **como o time trabalha** neste repositório. Se �
 5. **Abra o PR contra a `main`** preenchendo o template. PRs pequenos (até ~300 linhas de diff) são revisados rápido; PRs gigantes ficam parados — se a tarefa é grande, fatie em PRs sequenciais.
 6. **Revisão**: todo PR precisa de **1 aprovação** de outra pessoa do time (o mantenedor pode revisar qualquer um; entre alunos, revisem-se mutuamente — revisar é parte do aprendizado). Responda os comentários com novos commits; não faça force-push depois que a revisão começou.
 7. **Merge**: *squash merge* pela interface do GitHub (mantém a `main` com um commit por PR). Quem mergeia apaga a branch.
+
+## Branches: `main` e `prod`
+
+| Branch | Papel | Como recebe código | Imagem publicada |
+|---|---|---|---|
+| `main` | Integração / homologação. Pode estar instável. | PR de `feat/`, `fix/` etc., *squash merge* | `main`, `sha-xxxxxxx` |
+| `prod` | O que está (ou vai estar) em produção. | Só PR `main` → `prod`, *merge commit* | `prod`, `latest`, `sha-xxxxxxx` |
+
+- **Promover para produção:** abra um PR de `main` para `prod` (título `release: <resumo>`), com o CI verde nos dois lados. Use *merge commit*, não squash, para a `prod` continuar sendo ancestral da `main` e as promoções seguintes não gerarem conflito.
+- **Hotfix:** branch `fix/...` a partir da `prod`, PR para a `prod` e depois PR da `prod` de volta para a `main` (ou cherry-pick) para a correção não se perder.
+- Ninguém commita direto na `prod`. Enquanto não há versão estável, a `prod` serve para testar o fluxo de promoção e o CD.
 
 ## Definition of Done
 
@@ -45,12 +56,12 @@ O detalhe está em [`docs/development/CONVENTIONS.md`](docs/development/CONVENTI
 
 ## O que o CI faz hoje
 
-Em todo push/PR para `main` (`.github/workflows/ci.yml`):
+Em todo push/PR para `main` ou `prod` (`.github/workflows/ci.yml`):
 
 - **Segurança:** gitleaks escaneia os commits em busca de segredos (chaves, tokens, senhas) — qualquer vazamento **bloqueia o merge** (config/allowlist em `.gitleaks.toml`)
 - **Lint + testes:** `ruff check .` + `ruff format --check .` + `pytest` (SQLite)
 - **Docker:** build da imagem + `docker compose up --wait` + `curl /health` (pega Dockerfile quebrado e migração que não roda em Postgres limpo)
-- **Publish (só na `main`):** imagem em `ghcr.io/appfinanceiro-gecs/biveto-api` com tags `latest` e `sha-xxxxxxx`
+- **Publish (push em `main` ou `prod`):** imagem em `ghcr.io/appfinanceiro-gecs/biveto-api`; `main` gera `main` + `sha-xxxxxxx`, `prod` gera `prod` + `latest` + `sha-xxxxxxx`
 
 Dependências desatualizadas chegam como PRs semanais do **Dependabot** — revisar e mergear esses PRs é tarefa de sustentação como qualquer outra.
 
