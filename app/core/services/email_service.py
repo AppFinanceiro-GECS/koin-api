@@ -194,7 +194,7 @@ class EmailService:
             msg["Message-ID"] = make_msgid(domain="biveto.com")
             msg["Date"] = formatdate(localtime=True)
             msg["Reply-To"] = self.from_email
-            msg["X-Mailer"] = "Biveto Mail Service"
+            msg["X-Mailer"] = "Koin Mail Service"
 
             # Versão texto puro (importante para não ir para spam)
             if text_content:
@@ -214,15 +214,15 @@ class EmailService:
 
     def send_invitation(self, to_email: str, invite_url: str, inviter_name: str) -> bool:
         """Envia email de convite"""
-        subject = "Você foi convidado para o Biveto"
+        subject = "Você foi convidado para o Koin"
 
         # Versão texto puro (importante para entregabilidade)
         text_content = f"""
-Você foi convidado para o Biveto!
+Você foi convidado para o Koin!
 
-{inviter_name} convidou você para acessar o Biveto — seu assistente inteligente de finanças pessoais.
+{inviter_name} convidou você para acessar o Koin — seu assistente inteligente de finanças pessoais.
 
-Com o Biveto você pode:
+Com o Koin você pode:
 - Importar faturas automaticamente com IA
 - Controlar gastos e criar orçamentos
 - Definir e acompanhar metas financeiras
@@ -234,7 +234,7 @@ Clique no link abaixo para criar sua conta:
 Este convite expira em 48 horas.
 
 --
-Biveto — finanças claras. decisões firmes.
+Koin — finanças claras. decisões firmes.
 https://biveto.com
 """
 
@@ -251,7 +251,7 @@ https://biveto.com
         <div class="container">
             <div class="card">
                 <div class="header">
-                    <img src="https://biveto.com/logo.png" alt="Biveto" class="logo-img">
+                    <img src="https://biveto.com/logo.png" alt="Koin" class="logo-img">
                     <p class="slogan">finanças claras. decisões firmes.</p>
                 </div>
 
@@ -259,11 +259,11 @@ https://biveto.com
 
                 <p>
                     <span class="highlight">{inviter_name}</span> convidou você para acessar o
-                    <span class="highlight">Biveto</span> — seu assistente inteligente de finanças pessoais.
+                    <span class="highlight">Koin</span> — seu assistente inteligente de finanças pessoais.
                 </p>
 
                 <div class="features">
-                    <p style="margin: 0 0 12px; font-weight: 500; color: #374151;">Com o Biveto você pode:</p>
+                    <p style="margin: 0 0 12px; font-weight: 500; color: #374151;">Com o Koin você pode:</p>
                     <ul>
                         <li>Importar faturas automaticamente com IA</li>
                         <li>Controlar gastos e criar orçamentos</li>
@@ -283,10 +283,10 @@ https://biveto.com
                 </div>
 
                 <div class="footer">
-                    <img src="https://biveto.com/logo.png" alt="Biveto" class="footer-logo-img">
+                    <img src="https://biveto.com/logo.png" alt="Koin" class="footer-logo-img">
                     <p class="footer-slogan">finanças claras. decisões firmes.</p>
                     <p class="footer-links">
-                        © 2025 Biveto · <a href="https://biveto.com">biveto.com</a>
+                        © 2025 Koin · <a href="https://biveto.com">biveto.com</a>
                     </p>
                 </div>
             </div>
@@ -299,7 +299,7 @@ https://biveto.com
 
     def send_password_reset(self, to_email: str, reset_url: str, user_name: str) -> bool:
         """Envia email de redefinição de senha"""
-        subject = "Redefinir sua senha - Biveto"
+        subject = "Redefinir sua senha - Koin"
 
         # Versão texto puro
         text_content = f"""
@@ -307,7 +307,7 @@ Redefinição de senha
 
 Olá {user_name},
 
-Recebemos uma solicitação para redefinir a senha da sua conta no Biveto.
+Recebemos uma solicitação para redefinir a senha da sua conta no Koin.
 Clique no link abaixo para criar uma nova senha:
 
 {reset_url}
@@ -319,7 +319,7 @@ Se você não pediu para redefinir sua senha, ignore este email.
 Sua senha permanecerá a mesma e sua conta está segura.
 
 --
-Biveto — finanças claras. decisões firmes.
+Koin — finanças claras. decisões firmes.
 https://biveto.com
 """
 
@@ -336,7 +336,7 @@ https://biveto.com
         <div class="container">
             <div class="card">
                 <div class="header">
-                    <img src="https://biveto.com/logo.png" alt="Biveto" class="logo-img">
+                    <img src="https://biveto.com/logo.png" alt="Koin" class="logo-img">
                     <p class="slogan">finanças claras. decisões firmes.</p>
                 </div>
 
@@ -347,7 +347,7 @@ https://biveto.com
                 </p>
 
                 <p>
-                    Recebemos uma solicitação para redefinir a senha da sua conta no Biveto.
+                    Recebemos uma solicitação para redefinir a senha da sua conta no Koin.
                     Clique no botão abaixo para criar uma nova senha:
                 </p>
 
@@ -368,10 +368,10 @@ https://biveto.com
                 </div>
 
                 <div class="footer">
-                    <img src="https://biveto.com/logo.png" alt="Biveto" class="footer-logo-img">
+                    <img src="https://biveto.com/logo.png" alt="Koin" class="footer-logo-img">
                     <p class="footer-slogan">finanças claras. decisões firmes.</p>
                     <p class="footer-links">
-                        © 2025 Biveto · <a href="https://biveto.com">biveto.com</a>
+                        © 2025 Koin · <a href="https://biveto.com">biveto.com</a>
                     </p>
                 </div>
             </div>
@@ -384,7 +384,7 @@ https://biveto.com
 
     def send_password_changed_notification(self, to_email: str, user_name: str) -> bool:
         """Envia notificação de que a senha foi alterada"""
-        subject = "Sua senha foi alterada - Biveto"
+        subject = "Sua senha foi alterada - Koin"
 
         # Versão texto puro
         text_content = f"""
@@ -392,7 +392,7 @@ Senha alterada com sucesso
 
 Olá {user_name},
 
-Sua senha do Biveto foi alterada com sucesso.
+Sua senha do Koin foi alterada com sucesso.
 
 Se você fez essa alteração, pode ignorar este email.
 
@@ -400,7 +400,7 @@ Se você NÃO alterou sua senha, sua conta pode estar comprometida.
 Entre em contato conosco imediatamente respondendo este email.
 
 --
-Biveto — finanças claras. decisões firmes.
+Koin — finanças claras. decisões firmes.
 https://biveto.com
 """
 
@@ -417,7 +417,7 @@ https://biveto.com
         <div class="container">
             <div class="card">
                 <div class="header">
-                    <img src="https://biveto.com/logo.png" alt="Biveto" class="logo-img">
+                    <img src="https://biveto.com/logo.png" alt="Koin" class="logo-img">
                     <p class="slogan">finanças claras. decisões firmes.</p>
                 </div>
 
@@ -428,7 +428,7 @@ https://biveto.com
                 </p>
 
                 <p>
-                    Sua senha do Biveto foi alterada com sucesso.
+                    Sua senha do Koin foi alterada com sucesso.
                 </p>
 
                 <p>
@@ -442,10 +442,10 @@ https://biveto.com
                 </div>
 
                 <div class="footer">
-                    <img src="https://biveto.com/logo.png" alt="Biveto" class="footer-logo-img">
+                    <img src="https://biveto.com/logo.png" alt="Koin" class="footer-logo-img">
                     <p class="footer-slogan">finanças claras. decisões firmes.</p>
                     <p class="footer-links">
-                        © 2025 Biveto · <a href="https://biveto.com">biveto.com</a>
+                        © 2025 Koin · <a href="https://biveto.com">biveto.com</a>
                     </p>
                 </div>
             </div>

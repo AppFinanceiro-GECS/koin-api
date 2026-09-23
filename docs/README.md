@@ -1,6 +1,8 @@
-# Documentação do biveto-api
+# Documentação do koin-api
 
-> Este repositório nasceu da divisão do antigo monorepo `biveto-fin` em **biveto-api** (este: backend + infra) e **biveto-app** (mobile React Native). As docs abaixo vieram do monorepo; onde falarem de `frontend/`, Vite ou PWA, o equivalente atual é o [biveto-app](https://github.com/AppFinanceiro-GECS/biveto-app). Para subir o ambiente, siga o [README](../README.md) (Docker).
+> Este repositório nasceu da divisão do antigo monorepo `biveto-fin` em **koin-api** (este: backend + infra) e **koin-app** (mobile React Native). As docs abaixo vieram do monorepo; onde falarem de `frontend/`, Vite ou PWA, o equivalente atual é o [koin-app](https://github.com/AppFinanceiro-GECS/koin-app). Para subir o ambiente, siga o [README](../README.md) (Docker).
+>
+> Em set/2026 o produto passou de **Biveto** para **Koin** e os repos viraram `koin-api`/`koin-app`. Referências a "Biveto" que sobraram são históricas (o monorepo `biveto-fin`, a migração de gamificação, `web-legado/`) ou domínios `biveto.com` ainda sem substituto.
 
 ## Infra
 
@@ -36,5 +38,5 @@
 
 ## Integrações
 
-- [integrations/MCP_TOOLS.md](integrations/MCP_TOOLS.md) (servidor em `tools/mcp-biveto-db`)
+- [integrations/MCP_TOOLS.md](integrations/MCP_TOOLS.md) (servidor em `tools/mcp-koin-db`)
 - [integrations/MISTRAL_INTEGRATION.md](integrations/MISTRAL_INTEGRATION.md)

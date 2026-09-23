@@ -1,14 +1,14 @@
-# Análise de Segurança - Biveto App
+# Análise de Segurança - Koin
 **Data:** 07 de Fevereiro de 2026
 **Versão:** 1.0
 **Analista:** Claude Code Security Audit
-**Aplicação:** Biveto Financial Management (FastAPI + React)
+**Aplicação:** Koin Financial Management (FastAPI + React)
 
 ---
 
 ## 📊 Resumo Executivo
 
-Esta análise identificou **18 potenciais issues de segurança** no projeto Biveto App, sendo:
+Esta análise identificou **18 potenciais issues de segurança** no projeto Koin, sendo:
 - **0 Críticas Reais** (2 falsos positivos eliminados após análise contextual)
 - **4 Altas** (requerem atenção)
 - **8 Médias** (melhorias recomendadas)

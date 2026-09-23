@@ -3,7 +3,7 @@
 ## Visão geral do repositório
 
 ```
-biveto-app/
+koin-app/
 ├── backend/            # API FastAPI (Python) — serve também o frontend buildado em produção
 │   ├── app/
 │   │   ├── main.py     # entrypoint: middlewares, startup, scheduler
@@ -20,7 +20,7 @@ biveto-app/
 │   ├── src/stores/     # 8 stores Zustand (auth, theme, toast...)
 │   ├── src/services/   # camada de API (axios) — api.ts + módulos temáticos
 │   └── e2e/            # testes Playwright (page objects em e2e/pages/)
-├── mcp-biveto-db/      # servidor MCP read-only que consome a API via API key
+├── mcp-koin-db/      # servidor MCP read-only que consome a API via API key
 ├── docs/               # documentação (você está aqui)
 └── docker-compose.yml  # só o PostgreSQL de dev
 ```

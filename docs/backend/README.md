@@ -1,4 +1,4 @@
-# Biveto App - Backend
+# Koin - Backend
 
 API REST de gestao financeira pessoal construida com FastAPI, SQLAlchemy e PostgreSQL.
 
@@ -210,7 +210,7 @@ ruff app
 
 ```env
 # Database
-DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/biveto
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/koin
 
 # JWT
 SECRET_KEY=your-secret-key

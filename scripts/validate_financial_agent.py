@@ -379,7 +379,7 @@ async def validate_installments(session: AsyncSession, user_id: int):
 async def run_validation():
     """Executa todas as validações"""
     print("\n" + "=" * 70)
-    print("VALIDAÇÃO DO AGENTE FINANCEIRO BIVETO")
+    print("VALIDAÇÃO DO AGENTE FINANCEIRO KOIN")
     print("=" * 70)
     print("Usuário de teste: kalebeandradesilva@hotmail.com (id: 3)")
     print("Data de referência: Janeiro/2026")

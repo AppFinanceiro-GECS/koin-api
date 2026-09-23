@@ -2,7 +2,7 @@
 
 ## Visao Geral
 
-O Biveto e uma aplicacao de gestao financeira pessoal construida com arquitetura moderna de monolit modular. O sistema e dividido em duas partes principais:
+O Koin e uma aplicacao de gestao financeira pessoal construida com arquitetura moderna de monolit modular. O sistema e dividido em duas partes principais:
 
 - **Backend**: API REST em Python com FastAPI
 - **Frontend**: SPA em React com TypeScript

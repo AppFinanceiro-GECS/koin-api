@@ -1,8 +1,8 @@
-# LOGIC_MAP.md - Biveto App
+# LOGIC_MAP.md - Koin
 
 ## 0) Resumo Executivo
 
-**Biveto** é uma aplicação de finanças pessoais completa com as seguintes capacidades principais:
+**Koin** é uma aplicação de finanças pessoais completa com as seguintes capacidades principais:
 
 - **Upload inteligente de documentos** (faturas, cupons) com OCR via Google Gemini
 - **Gestão de transações** com suporte a parcelas, recorrentes e múltiplas contas
@@ -22,7 +22,7 @@
 ### 1.1 Visão Geral
 
 ```
-biveto-app/
+koin-app/
 ├── backend/                    # API REST (Python/FastAPI)
 │   └── app/
 │       ├── core/               # Config, DB, Auth, Security

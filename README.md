@@ -1,14 +1,14 @@
-# biveto-api
+# koin-api
 
-[![CI](https://github.com/AppFinanceiro-GECS/biveto-api/actions/workflows/ci.yml/badge.svg)](https://github.com/AppFinanceiro-GECS/biveto-api/actions/workflows/ci.yml)
+[![CI](https://github.com/AppFinanceiro-GECS/koin-api/actions/workflows/ci.yml/badge.svg)](https://github.com/AppFinanceiro-GECS/koin-api/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Backend e infraestrutura do **Biveto**, app de gestão financeira pessoal (Android/iOS). API REST em FastAPI, PostgreSQL e deploy com Docker Compose numa VPS.
+Backend e infraestrutura do **Koin** (antigo Biveto), app de gestão financeira pessoal (Android/iOS). API REST em FastAPI, PostgreSQL e deploy com Docker Compose numa VPS.
 
-O app mobile (React Native/Expo) fica em **[biveto-app](https://github.com/AppFinanceiro-GECS/biveto-app)**.
+O app mobile (React Native/Expo) fica em **[koin-app](https://github.com/AppFinanceiro-GECS/koin-app)**.
 
 ```
- biveto-app (Android/iOS) ──HTTPS──▶ Caddy :443 ──▶ api :8000 (FastAPI + APScheduler) ──▶ db (PostgreSQL 16)
+ koin-app (Android/iOS) ──HTTPS──▶ Caddy :443 ──▶ api :8000 (FastAPI + APScheduler) ──▶ db (PostgreSQL 16)
                                                         │
                                                         └── volume uploads (faturas/cupons)
 ```
@@ -40,7 +40,7 @@ make create-admin email=voce@exemplo.com senha='SenhaForte123' nome='Seu Nome'
 
 Outros alvos: `make logs`, `make ps`, `make shell`, `make migrate`, `make down`. Lista completa: `make help`.
 
-> Para o app no celular físico acessar a API local, use o IP da sua máquina na rede (ex.: `http://192.168.0.10:8000`) no `EXPO_PUBLIC_API_URL` do biveto-app.
+> Para o app no celular físico acessar a API local, use o IP da sua máquina na rede (ex.: `http://192.168.0.10:8000`) no `EXPO_PUBLIC_API_URL` do koin-app.
 
 ## Produção (VPS)
 
@@ -51,7 +51,7 @@ make prod-up     # docker compose -f docker-compose.yml -f docker-compose.prod.y
 
 O override de produção coloca o **Caddy** na frente com HTTPS automático (Let's Encrypt) e fecha as portas da API e do banco. Passo a passo, backup e atualização: **[docs/infra/DEPLOY.md](docs/infra/DEPLOY.md)**.
 
-A cada push, o CI publica a imagem em `ghcr.io/appfinanceiro-gecs/biveto-api`: da `main` com as tags `main` e `sha-xxxxxxx` (homologação), da `prod` com `prod`, `latest` e `sha-xxxxxxx` (produção). Fluxo de branches em [CONTRIBUTING.md](CONTRIBUTING.md#branches-main-e-prod).
+A cada push, o CI publica a imagem em `ghcr.io/appfinanceiro-gecs/koin-api`: da `main` com as tags `main` e `sha-xxxxxxx` (homologação), da `prod` com `prod`, `latest` e `sha-xxxxxxx` (produção). Fluxo de branches em [CONTRIBUTING.md](CONTRIBUTING.md#branches-main-e-prod).
 
 ## Desenvolvimento sem Docker
 
@@ -74,7 +74,7 @@ app/
 alembic/         migrações
 scripts/         scripts operacionais (create_admin, cleanup_uploads, backfills)
 tests/           pytest
-tools/           mcp-biveto-db: servidor MCP read-only que consome a API
+tools/           mcp-koin-db: servidor MCP read-only que consome a API
 docker/          entrypoint do container
 Dockerfile, docker-compose.yml, docker-compose.prod.yml, Caddyfile
 docs/            infra, arquitetura, módulos, regras de negócio, onboarding

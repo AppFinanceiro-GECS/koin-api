@@ -1,6 +1,6 @@
-# MCP Tools - Biveto
+# MCP Tools - Koin
 
-O MCP (Model Context Protocol) permite que assistentes de IA como o Claude acessem dados do Biveto diretamente, consultando suas financas pessoais de forma segura via API Key.
+O MCP (Model Context Protocol) permite que assistentes de IA como o Claude acessem dados do Koin diretamente, consultando suas financas pessoais de forma segura via API Key.
 
 ## Configuracao
 
@@ -9,7 +9,7 @@ O MCP (Model Context Protocol) permite que assistentes de IA como o Claude acess
    cp .mcp.json.example .mcp.json
    ```
 
-2. Gere uma API Key no Biveto: **Configuracoes > API Keys**
+2. Gere uma API Key no Koin: **Configuracoes > API Keys**
 
 3. Edite `.mcp.json` e substitua `your-api-key-here` pela sua API Key
 

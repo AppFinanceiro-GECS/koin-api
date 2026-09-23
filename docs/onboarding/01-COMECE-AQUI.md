@@ -1,8 +1,8 @@
 # 01 — Comece aqui
 
-## O que é o Biveto
+## O que é o Koin
 
-O Biveto é um app de **gestão financeira pessoal e familiar** (web + PWA instalável no celular), focado no contexto brasileiro. O diferencial é a **extração inteligente de documentos**: o usuário fotografa ou envia a fatura do cartão, um cupom fiscal ou um extrato (PDF/imagem/CSV/Excel) e o app usa LLMs com visão (Google Gemini por padrão) para extrair as transações, detectar parcelamentos e reconhecer assinaturas recorrentes (Netflix, Spotify etc.).
+O Koin é um app de **gestão financeira pessoal e familiar** (web + PWA instalável no celular), focado no contexto brasileiro. O diferencial é a **extração inteligente de documentos**: o usuário fotografa ou envia a fatura do cartão, um cupom fiscal ou um extrato (PDF/imagem/CSV/Excel) e o app usa LLMs com visão (Google Gemini por padrão) para extrair as transações, detectar parcelamentos e reconhecer assinaturas recorrentes (Netflix, Spotify etc.).
 
 Principais áreas funcionais:
 

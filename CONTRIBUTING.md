@@ -41,7 +41,7 @@ Um PR está pronto quando:
 - [ ] O CI está verde (gitleaks CLI + ruff + pytest + build/smoke test da imagem Docker).
 - [ ] Mudou regra de negócio? Tem **ao menos um teste** cobrindo a mudança.
 - [ ] Mudou modelo de dados? Tem migração Alembic (revisada à mão, não só o autogenerate) e ela roda em banco limpo (`alembic upgrade head` do zero).
-- [ ] Você testou manualmente o endpoint afetado (Swagger em `/docs` ou pelo biveto-app).
+- [ ] Você testou manualmente o endpoint afetado (Swagger em `/docs` ou pelo koin-app).
 - [ ] Nenhum segredo, dado real ou arquivo gerado foi commitado (leia as [regras de segurança](docs/onboarding/04-SUSTENTACAO.md#segurança--regras-não-negociáveis) — este repo já teve um incidente e as regras são inegociáveis).
 - [ ] Se o comportamento visível mudou, a documentação afetada foi atualizada.
 
@@ -50,7 +50,7 @@ Um PR está pronto quando:
 O detalhe está em [`docs/development/CONVENTIONS.md`](docs/development/CONVENTIONS.md). O essencial:
 
 - Router fino / service gordo; models centralizados em `app/models/`; schemas Pydantic v2 para toda entrada/saída; `async` em todo o caminho de request; siga o `ruff` (line-length 100).
-- Mudou contrato de endpoint (request/response)? Avise o time do [biveto-app](https://github.com/AppFinanceiro-GECS/biveto-app) no PR: os tipos do app espelham os schemas daqui.
+- Mudou contrato de endpoint (request/response)? Avise o time do [koin-app](https://github.com/AppFinanceiro-GECS/koin-app) no PR: os tipos do app espelham os schemas daqui.
 - Infra: nada de segredo em `docker-compose*.yml`/`Caddyfile`; tudo que varia por ambiente vai no `.env` e é documentado no `.env.example`.
 - Textos de UI em **português (pt-BR)**; código e identificadores em **inglês**.
 
@@ -61,7 +61,7 @@ Em todo push/PR para `main` ou `prod` (`.github/workflows/ci.yml`):
 - **Segurança:** gitleaks escaneia os commits em busca de segredos (chaves, tokens, senhas) — qualquer vazamento **bloqueia o merge** (config/allowlist em `.gitleaks.toml`)
 - **Lint + testes:** `ruff check .` + `ruff format --check .` + `pytest` (SQLite)
 - **Docker:** build da imagem + `docker compose up --wait` + `curl /health` (pega Dockerfile quebrado e migração que não roda em Postgres limpo)
-- **Publish (push em `main` ou `prod`):** imagem em `ghcr.io/appfinanceiro-gecs/biveto-api`; `main` gera `main` + `sha-xxxxxxx`, `prod` gera `prod` + `latest` + `sha-xxxxxxx`
+- **Publish (push em `main` ou `prod`):** imagem em `ghcr.io/appfinanceiro-gecs/koin-api`; `main` gera `main` + `sha-xxxxxxx`, `prod` gera `prod` + `latest` + `sha-xxxxxxx`
 
 Dependências desatualizadas chegam como PRs semanais do **Dependabot** — revisar e mergear esses PRs é tarefa de sustentação como qualquer outra.
 

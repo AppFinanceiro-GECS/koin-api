@@ -66,8 +66,8 @@ lint: ## Lint + checagem de formatação (o mesmo que o CI cobra)
 format: ## Formata o código
 	. venv/bin/activate && ruff check --fix . && ruff format .
 
-mcp-server: ## Servidor MCP read-only (requer API rodando e BIVETO_API_KEY)
-	cd tools/mcp-biveto-db && pip install -q -r requirements.txt && python server.py
+mcp-server: ## Servidor MCP read-only (requer API rodando e KOIN_API_KEY)
+	cd tools/mcp-koin-db && pip install -q -r requirements.txt && python server.py
 
 clean: ## Remove caches
 	find . -type d \( -name __pycache__ -o -name .pytest_cache -o -name .ruff_cache \) -prune -exec rm -rf {} +

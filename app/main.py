@@ -232,7 +232,7 @@ if settings.debug:
         "http://localhost:3001",
         "http://localhost:5173",
         "http://localhost:5174",
-        "http://localhost:8081",  # Expo Web (biveto-app)
+        "http://localhost:8081",  # Expo Web (koin-app)
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
         "http://127.0.0.1:5173",

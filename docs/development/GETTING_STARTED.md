@@ -1,6 +1,6 @@
 # Guia de Desenvolvimento
 
-Este documento contem instrucoes para desenvolvedores que trabalham no Biveto App.
+Este documento contem instrucoes para desenvolvedores que trabalham no Koin.
 
 ## Ambiente de Desenvolvimento
 
@@ -18,8 +18,8 @@ Este documento contem instrucoes para desenvolvedores que trabalham no Biveto Ap
 #### 1. Clonar o Repositorio
 
 ```bash
-git clone https://github.com/seu-usuario/biveto-app.git
-cd biveto-app
+git clone https://github.com/seu-usuario/koin-app.git
+cd koin-app
 ```
 
 #### 2. Configurar Backend
@@ -45,7 +45,7 @@ Editar `.env` com suas configuracoes:
 
 ```env
 # Database
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/biveto
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/koin
 
 # JWT
 SECRET_KEY=development-secret-key-change-in-production
@@ -66,7 +66,7 @@ ENVIRONMENT=development
 
 ```bash
 # Criar banco de dados
-createdb biveto
+createdb koin
 
 # Rodar migracoes
 alembic upgrade head
@@ -262,8 +262,8 @@ alembic history
 
 ```bash
 # Apagar e recriar
-dropdb biveto
-createdb biveto
+dropdb koin
+createdb koin
 alembic upgrade head
 ```
 

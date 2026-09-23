@@ -1,4 +1,4 @@
-# AUDIT_REPORT.md - Biveto App
+# AUDIT_REPORT.md - Koin
 
 **Data:** 2026-01-11
 **Auditor:** Claude (AI Technical Auditor)

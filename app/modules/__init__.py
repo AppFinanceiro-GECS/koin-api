@@ -1,5 +1,5 @@
 """
-Biveto App - Modular Backend Architecture
+Koin - Modular Backend Architecture
 
 Este pacote contém todos os módulos de domínio da aplicação, organizados
 seguindo os princípios de Domain-Driven Design (DDD) e Modular Monolith.

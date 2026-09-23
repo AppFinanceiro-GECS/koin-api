@@ -50,14 +50,14 @@ class Settings(BaseSettings):
     smtp_use_ssl: bool = True
     smtp_user: str | None = None
     smtp_password: str | None = None
-    smtp_from_name: str = "Biveto"
+    smtp_from_name: str = "Koin"
     smtp_from_email: str | None = None
 
     # Frontend URL (para links nos emails)
     frontend_url: str = "https://biveto.com"
 
-    # Biveto API Key (para integrações internas)
-    biveto_api_key: str | None = None
+    # Koin API Key (para integrações internas)
+    koin_api_key: str | None = None
 
     # Chat provider (separate from vision/extraction provider)
     # Default: uses vision_provider. Override to use cheaper model for text-only chat.

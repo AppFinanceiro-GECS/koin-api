@@ -1,7 +1,7 @@
 """
 Gamification Module
 
-Sistema de gamificação para o Biveto com:
+Sistema de gamificação para o Koin com:
 - Badges (conquistas)
 - Streaks (sequências de uso)
 - Challenges (desafios mensais)

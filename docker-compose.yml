@@ -2,16 +2,16 @@
 #   make up        (ou: docker compose up -d --build)
 # Em produção use junto com docker-compose.prod.yml (Caddy + HTTPS).
 
-name: biveto
+name: koin
 
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-biveto}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-biveto_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-biveto_db}
+      POSTGRES_USER: ${POSTGRES_USER:-koin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-koin_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-koin_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -29,11 +29,11 @@ services:
 
   api:
     build: .
-    image: ${API_IMAGE:-biveto-api:local}
+    image: ${API_IMAGE:-koin-api:local}
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-biveto}:${POSTGRES_PASSWORD:-biveto_secret}@db:5432/${POSTGRES_DB:-biveto_db}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-koin}:${POSTGRES_PASSWORD:-koin_secret}@db:5432/${POSTGRES_DB:-koin_db}
       UPLOAD_DIR: /app/uploads
     depends_on:
       db:

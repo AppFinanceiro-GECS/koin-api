@@ -25,14 +25,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 tesseract-ocr tesseract-ocr-por libzbar0 \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 1000 biveto
+    && useradd --create-home --uid 1000 koin
 
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
-COPY --chown=biveto:biveto . .
-RUN chmod +x docker/entrypoint.sh && mkdir -p /app/uploads && chown biveto:biveto /app/uploads
+COPY --chown=koin:koin . .
+RUN chmod +x docker/entrypoint.sh && mkdir -p /app/uploads && chown koin:koin /app/uploads
 
-USER biveto
+USER koin
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \

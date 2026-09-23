@@ -50,7 +50,7 @@ Registro das decisões estruturais do projeto (formato ADR compacto). O objetivo
 
 **Motivo:** JWT com refresh dá sessão fluida no browser sem estado no servidor. API Keys dão acesso programático revogável e por usuário, sem expor senha — e o servidor MCP consome a **API REST** com a chave (em vez de acessar o banco direto), o que preserva o isolamento entre usuários.
 
-**Consequência:** existem dois servidores MCP no repo: `mcp-biveto-db/` (raiz, read-only via API — o suportado) e `backend/mcp_server.py` (legado, acessa o banco direto). Use o primeiro; o segundo é candidato a remoção.
+**Consequência:** existem dois servidores MCP no repo: `mcp-koin-db/` (raiz, read-only via API — o suportado) e `backend/mcp_server.py` (legado, acessa o banco direto). Use o primeiro; o segundo é candidato a remoção.
 
 ## ADR-007 — Frontend servido pelo backend em produção
 

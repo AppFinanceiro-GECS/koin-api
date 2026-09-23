@@ -19,8 +19,8 @@ router = APIRouter(prefix="/mcp", tags=["MCP - Claude Code"])
 OPENAPI_SCHEMA = {
     "openapi": "3.1.0",
     "info": {
-        "title": "Biveto MCP API",
-        "description": """API para consulta de dados financeiros do Biveto.
+        "title": "Koin MCP API",
+        "description": """API para consulta de dados financeiros do Koin.
 
 IMPORTANTE: Para perguntas de análise financeira (ex: "quanto gastei com X", "como estão minhas finanças"),
 use SEMPRE o endpoint /context primeiro! Ele retorna dados pré-agregados ideais para análise por IA.

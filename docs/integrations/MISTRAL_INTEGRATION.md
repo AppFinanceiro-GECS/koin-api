@@ -1,8 +1,8 @@
-# Plano de Integração do Mistral OCR no Biveto App
+# Plano de Integração do Mistral OCR no Koin
 
 ## Resumo Executivo
 
-Este documento descreve os passos necessários para integrar o **Mistral OCR** no biveto-app como um provider alternativo para extração de dados de faturas de cartão de crédito.
+Este documento descreve os passos necessários para integrar o **Mistral OCR** no koin-app como um provider alternativo para extração de dados de faturas de cartão de crédito.
 
 ### Por que Mistral?
 
@@ -114,7 +114,7 @@ Analise o texto extraído pelo OCR de uma fatura e retorne um JSON estruturado.
 ## EXTRAIA OS DADOS:
 ```
 
-**Nota:** O prompt completo deve ser baseado em `prompts/prompt_mistral.txt` do projeto fatura-prompt-validator, adaptado para os schemas do biveto-app.
+**Nota:** O prompt completo deve ser baseado em `prompts/prompt_mistral.txt` do projeto fatura-prompt-validator, adaptado para os schemas do koin-app.
 
 ---
 
@@ -211,7 +211,7 @@ async def _call_mistral_ocr(self, pdf_content: bytes, filename: str) -> dict:
         # Parse JSON
         result = json.loads(response_text)
 
-        # Converter para formato interno do biveto-app
+        # Converter para formato interno do koin-app
         return self._convert_mistral_response(result)
 
     except Exception as e:
@@ -233,7 +233,7 @@ def _get_mistral_prompt(self) -> str:
     return MISTRAL_EXTRACTION_PROMPT  # constante definida no arquivo
 
 def _convert_mistral_response(self, mistral_result: dict) -> dict:
-    """Converte resposta do Mistral para formato interno do biveto-app"""
+    """Converte resposta do Mistral para formato interno do koin-app"""
     items = []
 
     for item in mistral_result.get('items', []):

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MCP Server para consultas ao Biveto App via API REST.
+MCP Server para consultas ao Koin via API REST.
 Usa API Key para autenticação (header X-API-Key).
 
 Permite apenas consultas de leitura para análise de dados.
@@ -15,8 +15,8 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
 # Configuração
-API_BASE_URL = os.environ.get("BIVETO_API_URL", "http://localhost:8000/api/v1")
-API_KEY = os.environ.get("BIVETO_API_KEY", "")
+API_BASE_URL = os.environ.get("KOIN_API_URL", "http://localhost:8000/api/v1")
+API_KEY = os.environ.get("KOIN_API_KEY", "")
 
 # Documentação das tabelas (cópia local para acesso offline)
 TABLE_DOCS = {
@@ -370,14 +370,14 @@ TABLE_DOCS = {
 }
 
 # Server instance
-server = Server("biveto-mcp")
+server = Server("koin-mcp")
 
 
 def get_headers() -> dict:
     """Retorna headers para requisições à API"""
     if not API_KEY:
         raise ValueError(
-            "BIVETO_API_KEY não configurada. Gere uma API Key em Configurações > API Keys no Biveto."
+            "KOIN_API_KEY não configurada. Gere uma API Key em Configurações > API Keys no Koin."
         )
     return {
         "X-API-Key": API_KEY,
@@ -386,7 +386,7 @@ def get_headers() -> dict:
 
 
 async def api_request(method: str, endpoint: str, **kwargs) -> dict | list | None:
-    """Faz requisição à API do Biveto"""
+    """Faz requisição à API do Koin"""
     url = f"{API_BASE_URL}{endpoint}"
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -665,9 +665,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 async def main():
     """Executa o servidor MCP."""
     if not API_KEY:
-        print("AVISO: BIVETO_API_KEY não configurada.")
+        print("AVISO: KOIN_API_KEY não configurada.")
         print("Para usar o MCP, gere uma API Key em: Configurações > API Keys")
-        print("Depois configure a variável de ambiente BIVETO_API_KEY")
+        print("Depois configure a variável de ambiente KOIN_API_KEY")
 
     async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())

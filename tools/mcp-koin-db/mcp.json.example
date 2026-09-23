@@ -1,0 +1,16 @@
+{
+  "_comment": "Configuracao do MCP Server do Koin. Copie este arquivo para .mcp.json e preencha sua API Key.",
+  "mcpServers": {
+    "koin-db": {
+      "_comment": "Servidor MCP para consultas ao banco de dados do Koin via API REST.",
+      "command": "python",
+      "args": [
+        "tools/mcp-koin-db/server.py"
+      ],
+      "env": {
+        "KOIN_API_URL": "http://localhost:8000/api/v1",
+        "KOIN_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}

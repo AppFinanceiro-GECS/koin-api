@@ -5,7 +5,7 @@ Stack de produção: `docker-compose.yml` + `docker-compose.prod.yml`.
 | Serviço | Imagem | Exposto |
 |---|---|---|
 | `caddy` | `caddy:2-alpine` | 80, 443 (HTTPS automático) |
-| `api` | build local ou `ghcr.io/appfinanceiro-gecs/biveto-api` | só na rede interna (8000) |
+| `api` | build local ou `ghcr.io/appfinanceiro-gecs/koin-api` | só na rede interna (8000) |
 | `db` | `postgres:16-alpine` | só na rede interna (5432) |
 
 Volumes persistentes: `postgres_data` (banco), `uploads` (arquivos enviados), `caddy_data` (certificados).
@@ -26,7 +26,7 @@ sudo ufw allow OpenSSH && sudo ufw allow 80 && sudo ufw allow 443/tcp && sudo uf
 ## Primeiro deploy
 
 ```bash
-git clone https://github.com/AppFinanceiro-GECS/biveto-api.git && cd biveto-api
+git clone https://github.com/AppFinanceiro-GECS/koin-api.git && cd koin-api
 make env                 # gera .env com SECRET_KEY aleatório
 ```
 
@@ -58,7 +58,7 @@ git pull
 make prod-up             # rebuild; as migrações rodam no start do container
 ```
 
-Usando a imagem do GHCR em vez de build local: coloque `API_IMAGE=ghcr.io/appfinanceiro-gecs/biveto-api:sha-xxxxxxx` no `.env` (produção usa só tags `sha-` publicadas a partir da branch `prod`; as tags `main`/`prod`/`latest` são móveis e servem para homologação) e rode
+Usando a imagem do GHCR em vez de build local: coloque `API_IMAGE=ghcr.io/appfinanceiro-gecs/koin-api:sha-xxxxxxx` no `.env` (produção usa só tags `sha-` publicadas a partir da branch `prod`; as tags `main`/`prod`/`latest` são móveis e servem para homologação) e rode
 `docker compose -f docker-compose.yml -f docker-compose.prod.yml pull api && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build`.
 
 **Rollback:** aponte `API_IMAGE` para a tag `sha-` anterior e rode o mesmo comando. Se a versão nova trouxe migração, faça `alembic downgrade` antes (`docker compose exec api alembic downgrade -1`) ou restaure o backup.
@@ -80,7 +80,7 @@ docker compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB
 Uploads:
 
 ```bash
-docker run --rm -v biveto_uploads:/data -v "$PWD":/backup alpine tar czf /backup/uploads-$(date +%F).tgz -C /data .
+docker run --rm -v koin_uploads:/data -v "$PWD":/backup alpine tar czf /backup/uploads-$(date +%F).tgz -C /data .
 ```
 
 Sugestão: cron diário com os dois comandos acima, copiando os arquivos para object storage (e **nunca** para o repositório; `*.dump` já está no `.gitignore`).
