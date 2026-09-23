@@ -1,0 +1,55 @@
+# Stack de um ambiente (hml ou prod) na VM, usada pelo CD (job deploy do ci.yml).
+# Fica em /opt/koin/<env>/ com um .env próprio (segredos só no servidor; modelo em deploy/env.example).
+# O Caddy compartilhado (deploy/proxy) alcança a API pela rede externa koin-edge, pelo alias koin-<env>-api.
+#   docker compose -p koin-<env> up -d --wait
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  api:
+    image: ${API_IMAGE:?API_IMAGE é definido pelo deploy}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      UPLOAD_DIR: /app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      default: {}
+      edge:
+        aliases:
+          - koin-${KOIN_ENV:?defina KOIN_ENV no .env}-api
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+networks:
+  edge:
+    external: true
+    name: koin-edge
+
+volumes:
+  postgres_data:
+  uploads:

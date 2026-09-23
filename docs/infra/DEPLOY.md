@@ -1,6 +1,41 @@
-# Deploy na VPS
+# Deploy
 
-Stack de produção: `docker-compose.yml` + `docker-compose.prod.yml`.
+## Ambientes atuais (CD automático)
+
+A API roda numa VM da Oracle Cloud (Always Free, São Paulo: `koin-01`, ARM 4 OCPU/24 GB, Ubuntu 24.04). O deploy é feito pelo job `deploy` do [`ci.yml`](../../.github/workflows/ci.yml) depois que lint, testes, smoke test e publish passam:
+
+| Branch | Environment no GitHub | URL | Stack na VM |
+|---|---|---|---|
+| `main` | `homologacao` | https://hml.144-22-232-63.sslip.io | `/opt/koin/hml` (projeto `koin-hml`) |
+| `prod` | `producao` | https://api.144-22-232-63.sslip.io | `/opt/koin/prod` (projeto `koin-prod`) |
+
+Swagger em `<URL>/docs`. Os domínios `sslip.io` resolvem para o IP embutido no nome; ao trocar por um domínio próprio, mude `HML_DOMAIN`/`PROD_DOMAIN` em `/opt/koin/proxy/.env`, a variável `PUBLIC_URL` de cada environment e o `eas.json` do koin-app.
+
+Como funciona:
+
+1. O CI gera a imagem nativamente para `amd64` e `arm64` e publica em `ghcr.io/appfinanceiro-gecs/koin-api` (`sha-xxxxxxx`).
+2. O job `deploy` envia a pasta [`deploy/`](../../deploy) do commit por SSH para o usuário `deploy` da VM. A chave (secret `DEPLOY_SSH_KEY`) só executa o [`koin-deploy`](../../deploy/koin-deploy.sh), que atualiza os compose, faz o pull da tag, sobe a stack com `--wait` e, **se a API não ficar saudável, volta para a imagem anterior**.
+3. Um Caddy compartilhado ([`deploy/proxy`](../../deploy/proxy)) serve os dois domínios com HTTPS e encaminha cada um para a API do seu ambiente pela rede Docker `koin-edge`. Cada ambiente tem o próprio Postgres.
+4. O job termina com `curl <PUBLIC_URL>/health`.
+
+Segredos (senhas do banco, `SECRET_KEY`, chaves de IA, SMTP) existem **só** em `/opt/koin/<env>/.env` na VM, com modelo em [`deploy/env.example`](../../deploy/env.example). As migrações rodam no start do container.
+
+Operação na VM (`ssh ubuntu@144.22.232.63`, chave com o grupo de infra):
+
+```bash
+cd /opt/koin/hml    # ou prod
+sudo -u deploy docker compose -p koin-hml logs -f api
+sudo -u deploy docker compose -p koin-hml exec api python scripts/create_admin.py "email" "senha" "Nome"
+sudo -u deploy docker compose -p koin-hml exec db pg_dump -U koin koin_db > backup.sql
+```
+
+**Rollback manual:** rode de novo o job `deploy` de um commit anterior (Actions → CI → *Re-run jobs*), ou na VM troque `API_IMAGE` no `.env` para a tag `sha-` anterior e rode `sudo -u deploy docker compose -p koin-<env> up -d --wait`.
+
+**Mudou `deploy/koin-deploy.sh`?** Ele não se atualiza sozinho (é o comando que a chave executa). Reinstale: `scp deploy/koin-deploy.sh ubuntu@144.22.232.63:/tmp/ && ssh ubuntu@144.22.232.63 'sudo install -m 755 /tmp/koin-deploy.sh /usr/local/bin/koin-deploy'`.
+
+## Deploy manual numa VPS qualquer
+
+O que segue abaixo é o caminho sem CD, com um único ambiente: Stack de produção: `docker-compose.yml` + `docker-compose.prod.yml`.
 
 | Serviço | Imagem | Exposto |
 |---|---|---|

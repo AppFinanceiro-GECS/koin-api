@@ -1,0 +1,18 @@
+(api) {
+	encode gzip zstd
+
+	# Uploads de faturas/cupons (MAX_UPLOAD_SIZE_MB=10 na API; folga para multipart)
+	request_body {
+		max_size 15MB
+	}
+
+	reverse_proxy {args[0]}:8000
+}
+
+{$HML_DOMAIN} {
+	import api koin-hml-api
+}
+
+{$PROD_DOMAIN} {
+	import api koin-prod-api
+}

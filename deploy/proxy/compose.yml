@@ -1,0 +1,31 @@
+# Caddy compartilhado pelos ambientes da VM: termina o HTTPS (Let's Encrypt) e encaminha
+# cada domínio para a API do ambiente pela rede koin-edge. Fica em /opt/koin/proxy/,
+# com HML_DOMAIN e PROD_DOMAIN no .env.
+
+name: koin-proxy
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      # Diretório (não o arquivo) para o reload enxergar o Caddyfile novo que o deploy grava
+      - ./caddy:/etc/caddy:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true
+    name: koin-edge
+
+volumes:
+  caddy_data:
+  caddy_config:

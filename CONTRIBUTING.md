@@ -61,7 +61,8 @@ Em todo push/PR para `main` ou `prod` (`.github/workflows/ci.yml`):
 - **Segurança:** gitleaks escaneia os commits em busca de segredos (chaves, tokens, senhas) — qualquer vazamento **bloqueia o merge** (config/allowlist em `.gitleaks.toml`)
 - **Lint + testes:** `ruff check .` + `ruff format --check .` + `pytest` (SQLite)
 - **Docker:** build da imagem + `docker compose up --wait` + `curl /health` (pega Dockerfile quebrado e migração que não roda em Postgres limpo)
-- **Publish (push em `main` ou `prod`):** imagem em `ghcr.io/appfinanceiro-gecs/koin-api`; `main` gera `main` + `sha-xxxxxxx`, `prod` gera `prod` + `latest` + `sha-xxxxxxx`
+- **Publish (push em `main` ou `prod`):** imagem multi-arch (amd64 + arm64) em `ghcr.io/appfinanceiro-gecs/koin-api`; `main` gera `main` + `sha-xxxxxxx`, `prod` gera `prod` + `latest` + `sha-xxxxxxx`
+- **Deploy:** `main` vai para homologação (https://hml.144-22-232-63.sslip.io) e `prod` para produção (https://api.144-22-232-63.sslip.io), com rollback automático se a API não subir. Detalhes em [docs/infra/DEPLOY.md](docs/infra/DEPLOY.md)
 
 Dependências desatualizadas chegam como PRs semanais do **Dependabot** — revisar e mergear esses PRs é tarefa de sustentação como qualquer outra.
 

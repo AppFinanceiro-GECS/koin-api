@@ -21,3 +21,4 @@ Caddyfile
 docker-compose*.yml
 Makefile
 *.md
+deploy/
