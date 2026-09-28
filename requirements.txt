@@ -44,7 +44,7 @@ python-dateutil==2.8.2
 rapidfuzz>=3.0.0  # Fuzzy string matching for duplicate detection
 
 # Google AI
-google-genai>=1.0.0
+google-genai>=2.25.0
 
 # Mistral AI (OCR + LLM)
 mistralai>=1.0.0
