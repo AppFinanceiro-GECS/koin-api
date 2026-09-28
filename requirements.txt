@@ -22,7 +22,7 @@ pydantic-settings>=2.1.0
 email-validator==2.1.0
 
 # Document processing
-pillow==10.2.0
+pillow==12.3.0
 pillow-heif>=0.18.0  # Suporte a HEIC do iPhone
 pypdf2==3.0.1
 pytesseract==0.3.10
