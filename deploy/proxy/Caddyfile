@@ -16,3 +16,7 @@
 {$PROD_DOMAIN} {
 	import api koin-prod-api
 }
+
+# Outros projetos hospedados na VM: um arquivo <projeto>.caddy em /opt/koin/proxy/caddy/sites/.
+# Ficam fora deste arquivo porque o deploy do koin-api o sobrescreve (docs/infra/DEPLOY.md).
+import /etc/caddy/sites/*.caddy

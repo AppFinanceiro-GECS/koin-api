@@ -27,6 +27,7 @@ tar -xzf - -C "$tmp"
 install -D -m 644 "$tmp/deploy/compose.yml" "$ENV_DIR/compose.yml"
 install -D -m 644 "$tmp/deploy/proxy/compose.yml" "$BASE/proxy/compose.yml"
 install -D -m 644 "$tmp/deploy/proxy/Caddyfile" "$BASE/proxy/caddy/Caddyfile"
+install -d -m 755 "$BASE/proxy/caddy/sites"
 
 set_image() { sed -i '/^API_IMAGE=/d' "$ENV_DIR/.env"; echo "API_IMAGE=$1" >>"$ENV_DIR/.env"; }
 compose() { docker compose -p "koin-$KOIN_ENV" --project-directory "$ENV_DIR" -f "$ENV_DIR/compose.yml" "$@"; }
