@@ -191,14 +191,14 @@ Exemplos: "cartoes,fluxo" ou "geral" ou "mercado" ou "cartoes,geral"."""
 
     async def _call_classification_llm(self, prompt: str) -> str:
         """Chama LLM pequeno para classificação (baixo custo, rápido)"""
-        # Usar Gemini 2.0 Flash-Lite para classificação (mais rápido e barato)
+        # Modelo leve de classificação (settings.classifier_model): rápido e barato
         api_key = settings.google_api_key
         if not api_key:
             raise ValueError("Google API key not configured")
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={api_key}",
+                f"https://generativelanguage.googleapis.com/v1beta/models/{settings.classifier_model}:generateContent?key={api_key}",
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {"temperature": 0, "maxOutputTokens": 50},
@@ -3849,7 +3849,7 @@ PONTOS IMPORTANTES:
             role = "user" if msg["role"] == "user" else "model"
             contents.append({"role": role, "parts": [{"text": msg["content"]}]})
 
-        model = "gemini-2.0-flash"
+        model = settings.chat_model or settings.vision_model
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(

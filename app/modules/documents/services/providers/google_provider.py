@@ -24,7 +24,7 @@ class GoogleProvider(BaseProvider):
         response_schema=None,
         parse_response_fn=None,
     ):
-        super().__init__(model or settings.vision_model or "gemini-2.0-flash")
+        super().__init__(model or settings.vision_model)
         self.max_retries = DEFAULT_MAX_RETRIES
         self.retry_delay = DEFAULT_RETRY_DELAY
         self._client = None
