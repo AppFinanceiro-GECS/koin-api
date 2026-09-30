@@ -37,7 +37,10 @@ class Settings(BaseSettings):
     # Providers suportados: google (gratuito), mistral (melhor custo-benefício)
     vision_provider: str = "google"  # google é gratuito!
     google_api_key: str | None = None  # Gemini - GRÁTIS
-    vision_model: str = "gemini-2.0-flash"  # Modelo gratuito com visão (atualizado 2025)
+    # Modelos em https://ai.google.dev/gemini-api/docs/models (a família 2.0 foi desligada em 01/06/2026).
+    # Trocar de modelo é só mudar a variável de ambiente; nenhum outro lugar do código fixa o nome.
+    vision_model: str = "gemini-3.5-flash-lite"  # extração de faturas e cupons (imagem/PDF)
+    classifier_model: str = "gemini-3.5-flash-lite"  # tipo de documento e intenção do chat
 
     # Mistral AI (melhor custo-benefício para OCR de faturas)
     mistral_api_key: str | None = None

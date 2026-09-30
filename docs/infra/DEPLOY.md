@@ -33,6 +33,38 @@ sudo -u deploy docker compose -p koin-hml exec db pg_dump -U koin koin_db > back
 
 **Mudou `deploy/koin-deploy.sh`?** Ele não se atualiza sozinho (é o comando que a chave executa). Reinstale: `scp deploy/koin-deploy.sh ubuntu@144.22.232.63:/tmp/ && ssh ubuntu@144.22.232.63 'sudo install -m 755 /tmp/koin-deploy.sh /usr/local/bin/koin-deploy'`.
 
+### Hospedar outros projetos na VM
+
+A VM tem folga (o Koin usa menos de 1 GB dos 24 GB), e o Caddy compartilhado atende outros sites. Como o deploy sobrescreve o [`Caddyfile`](../../deploy/proxy/Caddyfile), cada projeto extra ganha um arquivo próprio em `/opt/koin/proxy/caddy/sites/<projeto>.caddy`, que o `Caddyfile` importa:
+
+```caddy
+meuprojeto.144-22-232-63.sslip.io {
+	reverse_proxy meuprojeto-app:3000
+}
+```
+
+O projeto fica em `/opt/<projeto>/` com o próprio `compose.yml`, entra na rede `koin-edge` com um alias único e não publica portas:
+
+```yaml
+services:
+  app:
+    image: ...
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G          # sempre limite, para não disputar memória com o Koin
+    networks:
+      edge:
+        aliases: [meuprojeto-app]
+networks:
+  edge:
+    external: true
+    name: koin-edge
+```
+
+Depois: `docker compose -p meuprojeto up -d` e `sudo -u deploy docker compose -p koin-proxy --project-directory /opt/koin/proxy -f /opt/koin/proxy/compose.yml exec caddy caddy reload --config /etc/caddy/Caddyfile`. Cada projeto usa o próprio banco. Projeto experimental não deve dividir a VM com a produção do Koin quando houver dado real de usuário.
+
 ## Deploy manual numa VPS qualquer
 
 O que segue abaixo é o caminho sem CD, com um único ambiente: Stack de produção: `docker-compose.yml` + `docker-compose.prod.yml`.

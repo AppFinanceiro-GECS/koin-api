@@ -28,7 +28,7 @@ class LLMOCRService:
         self, provider: str | None = None, model: str | None = None, use_classifier: bool = True
     ):
         self.provider_name = provider or settings.vision_provider
-        self.model = model or settings.vision_model or "gemini-2.0-flash"
+        self.model = model or settings.vision_model
         self.parser = ResponseParser()
         self.validator = ExtractionValidator()
         self.classifier = DocumentClassifier() if use_classifier else None
@@ -236,7 +236,7 @@ class LLMOCRService:
 
         if provider_name == "google":
             return GoogleProvider(
-                model="gemini-2.0-flash",
+                model=settings.vision_model,
                 prompt=default_prompt,
                 response_schema=FaturaExtracao,
                 parse_response_fn=parse_fn,
@@ -270,7 +270,7 @@ class LLMOCRService:
         elif self.provider_name == "mistral" and settings.google_api_key:
             print("[LLM_OCR] Fallback provider: google")
             return GoogleProvider(
-                model="gemini-2.0-flash",
+                model=settings.vision_model,
                 prompt=self._provider.prompt if self._provider else EXTRACTION_PROMPT,
                 response_schema=FaturaExtracao,
                 parse_response_fn=parse_fn,

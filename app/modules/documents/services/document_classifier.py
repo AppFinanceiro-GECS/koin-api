@@ -387,7 +387,7 @@ class DocumentClassifier:
             # Executar em thread separada (non-blocking)
             def _call_gemini():
                 return client.models.generate_content(
-                    model="gemini-2.0-flash-lite",
+                    model=settings.classifier_model,
                     contents=prompt,
                     config={
                         "temperature": 0.0,

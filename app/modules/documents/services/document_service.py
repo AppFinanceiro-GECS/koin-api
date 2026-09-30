@@ -111,9 +111,7 @@ async def process_document_background(
             if settings.mistral_api_key:
                 llm_service = LLMOCRService(provider="mistral", model=settings.mistral_llm_model)
             else:
-                llm_service = LLMOCRService(
-                    provider="google", model=settings.vision_model or "gemini-2.0-flash"
-                )
+                llm_service = LLMOCRService(provider="google", model=settings.vision_model)
 
             extraction_data = await llm_service.extract_from_image(
                 file_bytes, mime_type, filename=filename, password=password
@@ -878,9 +876,7 @@ class DocumentService:
                 llm_service = LLMOCRService(provider="mistral", model=settings.mistral_llm_model)
                 print("[DOC_SVC] Using Mistral for batch image extraction")
             else:
-                llm_service = LLMOCRService(
-                    provider="google", model=settings.vision_model or "gemini-2.0-flash"
-                )
+                llm_service = LLMOCRService(provider="google", model=settings.vision_model)
                 print("[DOC_SVC] Using Google for batch image extraction (Mistral not configured)")
             result = await llm_service.extract_from_multiple_images(images)
 
@@ -1075,16 +1071,16 @@ class DocumentService:
             if selected_provider == "mistral" and settings.mistral_api_key:
                 selected_model = settings.mistral_llm_model
             elif selected_provider == "google" and settings.google_api_key:
-                selected_model = settings.vision_model or "gemini-2.0-flash"
+                selected_model = settings.vision_model
             elif settings.google_api_key:
                 selected_provider = "google"
-                selected_model = settings.vision_model or "gemini-2.0-flash"
+                selected_model = settings.vision_model
             elif settings.mistral_api_key:
                 selected_provider = "mistral"
                 selected_model = settings.mistral_llm_model
             else:
                 selected_provider = "google"
-                selected_model = "gemini-2.0-flash"
+                selected_model = settings.vision_model
             print(f"[DOC_SVC] Using {selected_provider} for extraction")
 
             from app.modules.documents.services.llm_ocr_service import LLMOCRService
