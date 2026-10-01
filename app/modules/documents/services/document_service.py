@@ -292,6 +292,9 @@ class DocumentService:
         self.db.add(document)
         await self.db.flush()
         await self.db.refresh(document)
+        # Gravar antes de agendar: a tarefa abre outra sessão e pode começar antes do
+        # commit automático do fim da requisição (FastAPI >= 0.120)
+        await self.db.commit()
 
         # Limpar content da memoria - arquivo ja esta no disco
         del content
