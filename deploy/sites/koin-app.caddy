@@ -1,0 +1,9 @@
+# Link clicável (WhatsApp, e-mail) que abre o app de homologação no Expo Go.
+# exp:// não vira link no WhatsApp; esta página usa exp:// no iPhone e intent:// no Android.
+# Ao trocar de domínio, troque o endereço abaixo.
+app.144-22-232-63.sslip.io {
+	encode gzip zstd
+	root * /etc/caddy/sites/koin-app
+	header Cache-Control "no-cache"
+	file_server
+}

@@ -63,6 +63,8 @@ networks:
     name: koin-edge
 ```
 
+Sites estáticos que fazem parte do Koin ficam versionados em [`deploy/sites/`](../../deploy/sites) e o deploy copia para a VM. Hoje: **https://app.144-22-232-63.sslip.io**, link clicável (WhatsApp, e-mail) que abre o app de homologação no Expo Go (`exp://` no iPhone, `intent://` no Android).
+
 Depois: `docker compose -p meuprojeto up -d` e `sudo -u deploy docker compose -p koin-proxy --project-directory /opt/koin/proxy -f /opt/koin/proxy/compose.yml exec caddy caddy reload --config /etc/caddy/Caddyfile`. Cada projeto usa o próprio banco. Projeto experimental não deve dividir a VM com a produção do Koin quando houver dado real de usuário.
 
 ## Deploy manual numa VPS qualquer

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Koin · homologação</title>
+<meta name="description" content="Abrir o app Koin de homologação no Expo Go">
+<meta property="og:title" content="Koin · homologação">
+<meta property="og:description" content="Toque para abrir o app de teste no Expo Go">
+<meta name="robots" content="noindex">
+<style>
+  :root { --bg:#f0f4f8; --card:#fff; --text:#102a43; --muted:#486581; --brand:#1E3A5F; --accent:#15803d; --border:#d9e2ec; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0b1726; --card:#13233a; --text:#e6edf5; --muted:#9fb3c8; --brand:#3b6ea5; --accent:#4ade80; --border:#22385a; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:480px; margin:0 auto; padding:32px 16px 48px; }
+  h1 { font-size:28px; margin:0 0 4px; }
+  .tag { color:var(--accent); margin:0 0 24px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px; margin-bottom:16px; }
+  .btn { display:block; text-align:center; background:var(--brand); color:#fff; text-decoration:none; font-weight:600; font-size:18px; padding:16px; border-radius:12px; }
+  .btn:active { opacity:.85; }
+  ol { margin:0; padding-left:20px; } li { margin:8px 0; }
+  a { color:var(--brand); } @media (prefers-color-scheme: dark) { a:not(.btn) { color:var(--accent); } }
+  .muted { color:var(--muted); font-size:14px; }
+  .qr { display:none; text-align:center; } .qr svg { width:220px; height:220px; border-radius:12px; }
+  .desktop .qr { display:block; } .desktop #abrir { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Koin</h1>
+  <p class="tag">Homologação do app (ambiente de teste)</p>
+
+  <div class="card">
+    <a id="abrir" class="btn" href="exp://u.expo.dev/9d8026b4-723d-4f73-87f2-16c484f8585e?channel-name=preview">Abrir no Expo Go</a>
+    <div class="qr">
+      <p>No computador? Leia este QR code com o celular:</p>
+      <svg xmlns="http://www.w3.org/2000/svg" width="246" height="246" class="segno"><g transform="scale(6)"><path fill="#fff" d="M0 0h41v41h-41z"/><path class="qrline" stroke="#0f1b2d" d="M2 2.5h7m2 0h2m2 0h1m1 0h1m2 0h1m1 0h4m4 0h1m1 0h7m-37 1h1m5 0h1m2 0h2m2 0h2m2 0h1m1 0h1m1 0h2m2 0h3m2 0h1m5 0h1m-37 1h1m1 0h3m1 0h1m1 0h3m1 0h1m3 0h1m2 0h3m6 0h1m1 0h1m1 0h3m1 0h1m-37 1h1m1 0h3m1 0h1m1 0h2m1 0h1m1 0h1m1 0h1m1 0h4m2 0h1m1 0h1m2 0h1m1 0h1m1 0h3m1 0h1m-37 1h1m1 0h3m1 0h1m1 0h2m2 0h4m3 0h1m1 0h1m1 0h3m2 0h1m1 0h1m1 0h3m1 0h1m-37 1h1m5 0h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h1m2 0h1m2 0h5m1 0h1m5 0h1m-37 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-29 1h1m1 0h2m3 0h2m2 0h3m1 0h2m2 0h2m-29 1h1m1 0h5m3 0h1m1 0h3m3 0h1m3 0h1m2 0h3m2 0h5m-32 1h2m2 0h1m1 0h1m1 0h2m1 0h3m5 0h4m2 0h2m5 0h1m-36 1h5m1 0h3m1 0h5m2 0h2m2 0h2m2 0h6m2 0h1m1 0h2m-33 1h2m1 0h4m5 0h1m4 0h2m3 0h2m1 0h2m1 0h2m2 0h1m-35 1h3m1 0h4m1 0h1m4 0h3m5 0h2m1 0h1m1 0h2m1 0h1m1 0h1m-35 1h1m2 0h1m3 0h4m1 0h3m2 0h7m2 0h1m1 0h2m1 0h1m1 0h1m1 0h1m-36 1h4m1 0h2m1 0h2m1 0h3m1 0h3m6 0h1m1 0h2m1 0h2m1 0h2m2 0h1m-36 1h2m4 0h2m1 0h9m1 0h2m1 0h1m2 0h8m1 0h1m-36 1h1m2 0h1m2 0h7m3 0h1m5 0h1m1 0h4m1 0h4m1 0h1m1 0h1m-37 1h2m1 0h1m1 0h1m1 0h1m1 0h2m1 0h1m2 0h1m1 0h2m2 0h1m1 0h1m1 0h1m2 0h1m4 0h3m-35 1h2m1 0h4m1 0h2m2 0h1m1 0h2m3 0h1m1 0h1m4 0h1m3 0h1m1 0h1m1 0h2m-36 1h1m1 0h1m3 0h1m2 0h6m3 0h4m3 0h2m2 0h2m1 0h1m1 0h2m-37 1h1m1 0h5m2 0h2m2 0h3m1 0h2m1 0h1m2 0h1m1 0h2m2 0h2m1 0h1m1 0h3m-37 1h2m1 0h2m2 0h1m4 0h3m4 0h1m1 0h5m2 0h2m3 0h2m-33 1h3m1 0h1m6 0h1m1 0h1m2 0h1m1 0h3m1 0h1m1 0h2m1 0h3m1 0h4m-37 1h1m3 0h1m2 0h4m1 0h3m5 0h5m3 0h4m1 0h1m-34 1h4m1 0h2m2 0h1m2 0h1m2 0h1m2 0h3m1 0h1m1 0h2m4 0h7m-37 1h1m2 0h3m2 0h2m1 0h1m3 0h3m1 0h5m4 0h2m-30 1h1m1 0h1m1 0h3m1 0h1m4 0h1m4 0h1m1 0h1m5 0h3m1 0h1m2 0h1m1 0h2m-37 1h1m3 0h1m6 0h2m1 0h1m1 0h1m1 0h1m1 0h2m2 0h1m5 0h1m1 0h1m-33 1h1m4 0h4m1 0h2m1 0h2m1 0h3m6 0h1m1 0h8m-27 1h1m1 0h2m1 0h1m3 0h1m1 0h1m1 0h8m3 0h1m1 0h2m-36 1h7m7 0h2m1 0h1m4 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m-37 1h1m5 0h1m1 0h3m1 0h1m1 0h1m1 0h3m1 0h2m2 0h1m1 0h3m3 0h2m1 0h2m-37 1h1m1 0h3m1 0h1m1 0h2m3 0h1m1 0h2m5 0h1m1 0h11m1 0h1m-37 1h1m1 0h3m1 0h1m1 0h1m1 0h3m1 0h2m2 0h4m1 0h1m1 0h1m2 0h5m3 0h1m-37 1h1m1 0h3m1 0h1m1 0h2m5 0h3m2 0h1m3 0h1m3 0h1m2 0h1m1 0h4m-37 1h1m5 0h1m3 0h3m2 0h1m5 0h3m3 0h3m1 0h3m2 0h1m-37 1h7m1 0h1m3 0h4m1 0h1m1 0h1m2 0h2m1 0h1m3 0h1m1 0h2m1 0h3"/></g></svg>
+
+      <p class="muted">iPhone: câmera. Android: botão "Scan QR code" do Expo Go.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <strong>Primeira vez?</strong>
+    <ol>
+      <li>Instale o <strong>Expo Go</strong>: <a href="https://apps.apple.com/app/expo-go/id982107779">iPhone (App Store)</a> ou <a href="https://expo.dev/go">Android (escolha SDK 58)</a>.</li>
+      <li>Entre no Expo Go com a <strong>sua conta Expo</strong>, já autorizada pelo Grupo 1.</li>
+      <li>Volte aqui e toque em <strong>Abrir no Expo Go</strong>.</li>
+      <li>No Koin, use o e-mail e a senha de teste que você recebeu.</li>
+    </ol>
+  </div>
+
+  <p class="muted">Ambiente de teste: use dados de exemplo, nunca faturas reais. Se o app abrir numa versão antiga, feche e abra de novo.</p>
+</main>
+<script>
+  (function () {
+    var exp = "exp://u.expo.dev/9d8026b4-723d-4f73-87f2-16c484f8585e?channel-name=preview";
+    var ua = navigator.userAgent || "";
+    var btn = document.getElementById("abrir");
+    if (/android/i.test(ua)) {
+      // O Chrome do Android não abre exp:// vindo de página; intent:// abre o Expo Go direto
+      btn.href = "intent://" + exp.replace("exp://", "") +
+        "#Intent;scheme=exp;package=host.exp.exponent;S.browser_fallback_url=" +
+        encodeURIComponent("https://expo.dev/go") + ";end";
+    } else if (/iphone|ipad|ipod/i.test(ua)) {
+      setTimeout(function () { window.location.href = exp; }, 300);
+    } else {
+      document.documentElement.className = "desktop";
+    }
+  })();
+</script>
+</body>
+</html>
