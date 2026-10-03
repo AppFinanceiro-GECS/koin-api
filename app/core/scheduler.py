@@ -11,16 +11,20 @@ Usage:
     shutdown_scheduler()
 """
 
+import asyncio
 import logging
 from datetime import date, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
-from sqlalchemy import select
+from apscheduler.triggers.interval import IntervalTrigger
+from sqlalchemy import or_, select
 
 from .config import settings
 from .database import async_session_maker
+from .services.email_service import email_service
+from .utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +100,95 @@ async def task_check_recurring_due():
 
 async def task_check_low_balance():
     await _run_alert_for_all_users("check_low_balance")
+
+
+# ===== Email Notification Delivery =====
+
+
+async def _send_pending_email_notifications(db) -> int:
+    """
+    Send notifications that are generated but not yet delivered by email.
+    Respects per-type preference (NotificationPreference.email_enabled) and the
+    global opt-out (NotificationSettings.email_unsubscribed). Only marks a
+    notification as sent after the email actually goes out, so a failed send
+    is retried on the next run instead of being silently lost.
+    Returns the number of emails sent.
+    """
+    from app.models.notification import (
+        Notification,
+        NotificationSettings,
+        NotificationType,
+    )
+    from app.models.user import User
+    from app.modules.notifications.services.notification_service import NotificationService
+
+    now = utc_now()
+    notification_service = NotificationService(db)
+    sent_count = 0
+
+    result = await db.execute(
+        select(Notification, User)
+        .join(User, Notification.user_id == User.id)
+        .where(
+            Notification.sent_email == False,  # noqa: E712
+            Notification.is_dismissed == False,  # noqa: E712
+            User.is_active == True,  # noqa: E712
+            or_(Notification.scheduled_for.is_(None), Notification.scheduled_for <= now),
+        )
+    )
+
+    for notification, user in result.all():
+        try:
+            settings_result = await db.execute(
+                select(NotificationSettings).where(NotificationSettings.user_id == user.id)
+            )
+            user_settings = settings_result.scalar_one_or_none()
+            if user_settings and user_settings.email_unsubscribed:
+                continue
+
+            preference = await notification_service._get_or_create_preference(
+                user.id, NotificationType(notification.type)
+            )
+            if not preference.email_enabled or preference.frequency == "disabled":
+                continue
+
+            if DRY_RUN:
+                logger.info(
+                    f"[DRY RUN] Would email notification {notification.id} to user {user.id}"
+                )
+                continue
+
+            loop = asyncio.get_running_loop()
+            success = await loop.run_in_executor(
+                None,
+                email_service.send_notification_email,
+                user.email,
+                user.name,
+                notification.title,
+                notification.message,
+                notification.action_url,
+                notification.action_label,
+            )
+
+            if success:
+                notification.sent_email = True
+                notification.sent_at = now
+                await db.commit()
+                sent_count += 1
+            else:
+                # Nothing to undo: sent_email stays False and is retried next run.
+                logger.warning(f"Failed to email notification {notification.id} (user {user.id})")
+        except Exception:
+            await db.rollback()
+            logger.exception(f"Error emailing notification {notification.id}")
+
+    return sent_count
+
+
+async def task_send_pending_email_notifications():
+    async with async_session_maker() as db:
+        count = await _send_pending_email_notifications(db)
+    logger.info(f"Scheduler: email notifications — {count} sent{' (dry run)' if DRY_RUN else ''}")
 
 
 # ===== Recurring Transaction Generation =====
@@ -375,6 +468,14 @@ def register_jobs():
         task_check_low_balance,
         CronTrigger(hour=9, minute=30),
         id="check_low_balance",
+        replace_existing=True,
+    )
+
+    # Email delivery for pending notifications — every 5 minutes
+    scheduler.add_job(
+        task_send_pending_email_notifications,
+        IntervalTrigger(minutes=5),
+        id="send_pending_email_notifications",
         replace_existing=True,
     )
 
