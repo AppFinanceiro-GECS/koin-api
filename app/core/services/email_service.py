@@ -456,5 +456,79 @@ https://biveto.com
 """
         return self.send_email(to_email, subject, html_content, text_content)
 
+    def send_notification_email(
+        self,
+        to_email: str,
+        user_name: str,
+        title: str,
+        message: str,
+        action_url: str | None = None,
+        action_label: str | None = None,
+    ) -> bool:
+        """Envia uma notificação do app (vencimento de fatura, orçamento, etc.) por email"""
+        subject = f"{title} - Koin"
+
+        text_content = f"""
+{title}
+
+Olá {user_name},
+
+{message}
+
+{action_url or ""}
+
+--
+Koin — finanças claras. decisões firmes.
+https://biveto.com
+"""
+
+        action_html = ""
+        if action_url:
+            action_html = f"""
+                <div class="button-container">
+                    <a href="{action_url}" class="button">{action_label or "Ver no Koin"}</a>
+                </div>
+"""
+
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {EMAIL_BASE_STYLE}
+</head>
+<body>
+    <div class="wrapper">
+        <div class="container">
+            <div class="card">
+                <div class="header">
+                    <img src="https://biveto.com/logo.png" alt="Koin" class="logo-img">
+                    <p class="slogan">finanças claras. decisões firmes.</p>
+                </div>
+
+                <h2>{title}</h2>
+
+                <p>
+                    Olá <span class="highlight">{user_name}</span>,
+                </p>
+
+                <p>{message}</p>
+{action_html}
+                <div class="footer">
+                    <img src="https://biveto.com/logo.png" alt="Koin" class="footer-logo-img">
+                    <p class="footer-slogan">finanças claras. decisões firmes.</p>
+                    <p class="footer-links">
+                        © 2025 Koin · <a href="https://biveto.com">biveto.com</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        return self.send_email(to_email, subject, html_content, text_content)
+
 
 email_service = EmailService()
