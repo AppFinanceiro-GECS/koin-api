@@ -42,9 +42,12 @@ EMAIL_BASE_STYLE = """
         padding-bottom: 32px;
         border-bottom: 1px solid #e5e7eb;
     }
-    .logo-img {
-        height: 48px;
-        margin-bottom: 8px;
+    .logo-text {
+        font-size: 26px;
+        font-weight: 700;
+        color: #1E3A5F;
+        margin: 0 0 8px;
+        letter-spacing: -0.5px;
     }
     .slogan {
         font-size: 13px;
@@ -127,9 +130,11 @@ EMAIL_BASE_STYLE = """
         padding-top: 24px;
         border-top: 1px solid #e5e7eb;
     }
-    .footer-logo-img {
-        height: 32px;
-        margin-bottom: 4px;
+    .footer-logo-text {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1E3A5F;
+        margin: 0 0 4px;
     }
     .footer-slogan {
         font-size: 12px;
@@ -191,7 +196,7 @@ class EmailService:
             msg["To"] = to_email
 
             # Cabeçalhos para melhorar entregabilidade
-            msg["Message-ID"] = make_msgid(domain="biveto.com")
+            msg["Message-ID"] = make_msgid(domain="koin.app")
             msg["Date"] = formatdate(localtime=True)
             msg["Reply-To"] = self.from_email
             msg["X-Mailer"] = "Koin Mail Service"
@@ -235,7 +240,6 @@ Este convite expira em 48 horas.
 
 --
 Koin — finanças claras. decisões firmes.
-https://biveto.com
 """
 
         html_content = f"""
@@ -251,7 +255,7 @@ https://biveto.com
         <div class="container">
             <div class="card">
                 <div class="header">
-                    <img src="https://biveto.com/logo.png" alt="Koin" class="logo-img">
+                    <div class="logo-text">Koin</div>
                     <p class="slogan">finanças claras. decisões firmes.</p>
                 </div>
 
@@ -283,10 +287,10 @@ https://biveto.com
                 </div>
 
                 <div class="footer">
-                    <img src="https://biveto.com/logo.png" alt="Koin" class="footer-logo-img">
+                    <div class="footer-logo-text">Koin</div>
                     <p class="footer-slogan">finanças claras. decisões firmes.</p>
                     <p class="footer-links">
-                        © 2025 Koin · <a href="https://biveto.com">biveto.com</a>
+                        © 2025 Koin
                     </p>
                 </div>
             </div>
@@ -320,7 +324,6 @@ Sua senha permanecerá a mesma e sua conta está segura.
 
 --
 Koin — finanças claras. decisões firmes.
-https://biveto.com
 """
 
         html_content = f"""
@@ -336,7 +339,7 @@ https://biveto.com
         <div class="container">
             <div class="card">
                 <div class="header">
-                    <img src="https://biveto.com/logo.png" alt="Koin" class="logo-img">
+                    <div class="logo-text">Koin</div>
                     <p class="slogan">finanças claras. decisões firmes.</p>
                 </div>
 
@@ -368,10 +371,10 @@ https://biveto.com
                 </div>
 
                 <div class="footer">
-                    <img src="https://biveto.com/logo.png" alt="Koin" class="footer-logo-img">
+                    <div class="footer-logo-text">Koin</div>
                     <p class="footer-slogan">finanças claras. decisões firmes.</p>
                     <p class="footer-links">
-                        © 2025 Koin · <a href="https://biveto.com">biveto.com</a>
+                        © 2025 Koin
                     </p>
                 </div>
             </div>
@@ -401,7 +404,6 @@ Entre em contato conosco imediatamente respondendo este email.
 
 --
 Koin — finanças claras. decisões firmes.
-https://biveto.com
 """
 
         html_content = f"""
@@ -417,7 +419,7 @@ https://biveto.com
         <div class="container">
             <div class="card">
                 <div class="header">
-                    <img src="https://biveto.com/logo.png" alt="Koin" class="logo-img">
+                    <div class="logo-text">Koin</div>
                     <p class="slogan">finanças claras. decisões firmes.</p>
                 </div>
 
@@ -442,10 +444,10 @@ https://biveto.com
                 </div>
 
                 <div class="footer">
-                    <img src="https://biveto.com/logo.png" alt="Koin" class="footer-logo-img">
+                    <div class="footer-logo-text">Koin</div>
                     <p class="footer-slogan">finanças claras. decisões firmes.</p>
                     <p class="footer-links">
-                        © 2025 Koin · <a href="https://biveto.com">biveto.com</a>
+                        © 2025 Koin
                     </p>
                 </div>
             </div>
@@ -479,7 +481,6 @@ Olá {user_name},
 
 --
 Koin — finanças claras. decisões firmes.
-https://biveto.com
 """
 
         action_html = ""
@@ -503,7 +504,7 @@ https://biveto.com
         <div class="container">
             <div class="card">
                 <div class="header">
-                    <img src="https://biveto.com/logo.png" alt="Koin" class="logo-img">
+                    <div class="logo-text">Koin</div>
                     <p class="slogan">finanças claras. decisões firmes.</p>
                 </div>
 
@@ -516,10 +517,10 @@ https://biveto.com
                 <p>{message}</p>
 {action_html}
                 <div class="footer">
-                    <img src="https://biveto.com/logo.png" alt="Koin" class="footer-logo-img">
+                    <div class="footer-logo-text">Koin</div>
                     <p class="footer-slogan">finanças claras. decisões firmes.</p>
                     <p class="footer-links">
-                        © 2025 Koin · <a href="https://biveto.com">biveto.com</a>
+                        © 2025 Koin
                     </p>
                 </div>
             </div>
