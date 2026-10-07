@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, HTTPException, UploadFile, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -190,6 +191,54 @@ class DocumentService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _find_by_hash(self, user: User, file_hash: str) -> Document | None:
+        result = await self.db.execute(
+            select(Document).where(
+                Document.user_id == user.id,
+                Document.file_hash == file_hash,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    def _duplicate_error(existing: Document) -> HTTPException:
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "duplicate",
+                "message": "Este documento ja foi enviado",
+                "document_id": existing.id,
+            },
+        )
+
+    async def _resolve_duplicate(self, user: User, file_hash: str, force: bool) -> Document | None:
+        """Bloqueia reenvio (409) ou, com force=True, devolve o documento existente para reprocessar."""
+        existing = await self._find_by_hash(user, file_hash)
+        if existing is None:
+            return None
+        if not force:
+            raise self._duplicate_error(existing)
+        if existing.status == DocumentStatus.PROCESSING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Documento ja esta sendo processado",
+            )
+        existing.error_message = None
+        return existing
+
+    async def _add_document(self, user: User, document: Document) -> None:
+        """Persiste o documento; upload concorrente do mesmo arquivo vira 409."""
+        self.db.add(document)
+        try:
+            await self.db.flush()
+        except IntegrityError:
+            await self.db.rollback()
+            existing = await self._find_by_hash(user, document.file_hash)
+            if existing is None:
+                raise
+            raise self._duplicate_error(existing)
+        await self.db.refresh(document)
+
     async def upload_async(
         self,
         user: User,
@@ -197,6 +246,7 @@ class DocumentService:
         background_tasks: BackgroundTasks,
         password: str | None = None,
         credit_card_id: int | None = None,
+        force: bool = False,
     ) -> dict:
         """
         Upload async: retorna imediatamente e processa em background.
@@ -208,6 +258,7 @@ class DocumentService:
             background_tasks: FastAPI background tasks
             password: Optional password for protected PDFs
             credit_card_id: Optional credit card ID to fetch saved password
+            force: Reprocessa o documento existente em vez de devolver 409
         """
         from app.modules.documents.schemas.document import DocumentAsyncUploadResponse
 
@@ -268,6 +319,7 @@ class DocumentService:
 
         # Calcular hash para dedupe
         file_hash = hashlib.sha256(content).hexdigest()
+        existing_document = await self._resolve_duplicate(user, file_hash, force)
 
         # Salvar arquivo
         upload_dir = Path(settings.upload_dir) / str(user.id)
@@ -279,19 +331,23 @@ class DocumentService:
         # Guardar tamanho antes de limpar content
         content_size = len(content)
 
-        # Criar registro com status PROCESSING
-        document = Document(
-            user_id=user.id,
-            file_path=str(file_path),
-            file_hash=file_hash,
-            file_size=content_size,
-            mime_type=file.content_type or f"application/{ext}",
-            original_filename=file.filename or "unknown",
-            status=DocumentStatus.PROCESSING,  # Ja marca como processing
-        )
-        self.db.add(document)
-        await self.db.flush()
-        await self.db.refresh(document)
+        if existing_document is not None:
+            document = existing_document
+            document.file_path = str(file_path)
+            document.status = DocumentStatus.PROCESSING
+            await self.db.flush()
+        else:
+            # Criar registro com status PROCESSING
+            document = Document(
+                user_id=user.id,
+                file_path=str(file_path),
+                file_hash=file_hash,
+                file_size=content_size,
+                mime_type=file.content_type or f"application/{ext}",
+                original_filename=file.filename or "unknown",
+                status=DocumentStatus.PROCESSING,  # Ja marca como processing
+            )
+            await self._add_document(user, document)
         # Gravar antes de agendar: a tarefa abre outra sessão e pode começar antes do
         # commit automático do fim da requisição (FastAPI >= 0.120)
         await self.db.commit()
@@ -324,6 +380,7 @@ class DocumentService:
         file: UploadFile,
         password: str | None = None,
         credit_card_id: int | None = None,
+        force: bool = False,
     ) -> Document:
         # Validar extensao
         ext = file.filename.split(".")[-1].lower() if file.filename else ""
@@ -383,23 +440,8 @@ class DocumentService:
 
         # Calcular hash para dedupe
         file_hash = hashlib.sha256(content).hexdigest()
-
-        # Verificar se e duplicata (apenas informativo)
-        existing_result = await self.db.execute(
-            select(Document)
-            .where(
-                Document.user_id == user.id,
-                Document.file_hash == file_hash,
-            )
-            .limit(1)
-        )
-        existing_document = existing_result.scalar_one_or_none()
+        existing_document = await self._resolve_duplicate(user, file_hash, force)
         is_duplicate = existing_document is not None
-
-        if is_duplicate:
-            print(
-                f"[DOC_SVC] Duplicate detected (informative only): existing_id={existing_document.id}"
-            )
 
         # Salvar arquivo
         upload_dir = Path(settings.upload_dir) / str(user.id)
@@ -409,19 +451,21 @@ class DocumentService:
         # Escrita em thread separada para nao bloquear o event loop
         await asyncio.to_thread(_write_file_sync, file_path, content)
 
-        # Criar registro
-        document = Document(
-            user_id=user.id,
-            file_path=str(file_path),
-            file_hash=file_hash,
-            file_size=len(content),
-            mime_type=file.content_type or f"application/{ext}",
-            original_filename=file.filename or "unknown",
-            status=DocumentStatus.PENDING,
-        )
-        self.db.add(document)
-        await self.db.flush()
-        await self.db.refresh(document)
+        if existing_document is not None:
+            document = existing_document
+            document.file_path = str(file_path)
+            document.status = DocumentStatus.PENDING
+        else:
+            document = Document(
+                user_id=user.id,
+                file_path=str(file_path),
+                file_hash=file_hash,
+                file_size=len(content),
+                mime_type=file.content_type or f"application/{ext}",
+                original_filename=file.filename or "unknown",
+                status=DocumentStatus.PENDING,
+            )
+            await self._add_document(user, document)
 
         # Processar documento e extrair dados (sem salvar extracao)
         extraction_data = await self._process_document(document, content, password)
@@ -575,7 +619,7 @@ class DocumentService:
 
         return response
 
-    async def upload_batch(self, user: User, files: list) -> Document:
+    async def upload_batch(self, user: User, files: list, force: bool = False) -> Document:
         """Upload de multiplas imagens como 1 documento (para cupons grandes)"""
         from app.modules.documents.schemas.document import (
             CardInfoResponse,
@@ -643,23 +687,8 @@ class DocumentService:
 
         # Calcular hash combinado para dedupe
         file_hash = hashlib.sha256(combined_hash_data).hexdigest()
-
-        # Verificar se e duplicata
-        existing_result = await self.db.execute(
-            select(Document)
-            .where(
-                Document.user_id == user.id,
-                Document.file_hash == file_hash,
-            )
-            .limit(1)
-        )
-        existing_document = existing_result.scalar_one_or_none()
+        existing_document = await self._resolve_duplicate(user, file_hash, force)
         is_duplicate = existing_document is not None
-
-        if is_duplicate:
-            print(
-                f"[DOC_SVC] Batch duplicate detected (informative only): existing_id={existing_document.id}"
-            )
 
         # Salvar primeira imagem como referencia
         upload_dir = Path(settings.upload_dir) / str(user.id)
@@ -670,19 +699,21 @@ class DocumentService:
         file_path = upload_dir / f"{file_hash}.{ext}"
         await asyncio.to_thread(_write_file_sync, file_path, first_content)
 
-        # Criar registro do documento
-        document = Document(
-            user_id=user.id,
-            file_path=str(file_path),
-            file_hash=file_hash,
-            file_size=total_size,
-            mime_type=first_mime,
-            original_filename=f"batch_{len(files)}_images",
-            status=DocumentStatus.PENDING,
-        )
-        self.db.add(document)
-        await self.db.flush()
-        await self.db.refresh(document)
+        if existing_document is not None:
+            document = existing_document
+            document.file_path = str(file_path)
+            document.status = DocumentStatus.PENDING
+        else:
+            document = Document(
+                user_id=user.id,
+                file_path=str(file_path),
+                file_hash=file_hash,
+                file_size=total_size,
+                mime_type=first_mime,
+                original_filename=f"batch_{len(files)}_images",
+                status=DocumentStatus.PENDING,
+            )
+            await self._add_document(user, document)
 
         # Processar multiplas imagens usando LLM
         extraction_data = await self._process_batch_images(document, images)
@@ -955,6 +986,16 @@ class DocumentService:
                 detail="Documento ja esta sendo processado",
             )
 
+        if not os.path.exists(document.file_path):
+            raise HTTPException(
+                status_code=status.HTTP_410_GONE,
+                detail={
+                    "error": "file_missing",
+                    "message": "O arquivo deste documento nao esta mais disponivel. "
+                    "Exclua o documento e envie o arquivo novamente.",
+                },
+            )
+
         # Ler arquivo em thread separada para nao bloquear o event loop
         content = await asyncio.to_thread(_read_file_sync, document.file_path)
 
@@ -970,8 +1011,13 @@ class DocumentService:
                 detail="Documento nao encontrado",
             )
 
-        # Apagar arquivo
-        if os.path.exists(document.file_path):
+        # Documentos antigos (anteriores ao indice unico) podem compartilhar o mesmo arquivo
+        shared_with = await self.db.scalar(
+            select(func.count())
+            .select_from(Document)
+            .where(Document.file_path == document.file_path, Document.id != document.id)
+        )
+        if not shared_with and os.path.exists(document.file_path):
             os.remove(document.file_path)
 
         await self.db.delete(document)
