@@ -1,0 +1,22 @@
+{
+  "document_type": "cupom_fiscal",
+  "total_amount": 32.0,
+  "items": [
+    {
+      "description": "ARROZ TESTE ORBITA",
+      "amount": 17.3
+    },
+    {
+      "description": "LEITE TESTE NEBULA",
+      "amount": 9.8
+    },
+    {
+      "description": "SABONETE TESTE COMETA",
+      "amount": 4.25
+    },
+    {
+      "description": "SACOLA TESTE LUNAR",
+      "amount": 0.65
+    }
+  ]
+}

@@ -83,3 +83,55 @@ Registro das decisões estruturais do projeto (formato ADR compacto). O objetivo
 **Motivo:** o histórico antigo continha segredos e dados pessoais reais (chave de API, dump de banco, extratos) que foram purgados com `git filter-repo`. Como o GitHub retém objetos antigos acessíveis por SHA e via `refs/pull`, publicar o repo original nunca seria seguro — daí o repositório novo.
 
 **Consequência:** **o repo antigo permanece privado para sempre**; nunca puxe ou cite commits dele. As regras do que jamais commitar estão no [04-SUSTENTACAO.md](04-SUSTENTACAO.md) e no `.gitignore` (que é parte da defesa — não o afrouxe).
+
+## ADR-011 — Modelo Gemini para extração e política de versionamento
+
+**Data e status:** 07/10/2026 — decisão aprovada.
+
+**Contexto:** a família Gemini 2.0 usada historicamente foi desligada em 01/06/2026, conforme o [calendário oficial de descontinuação do Google](https://ai.google.dev/gemini-api/docs/deprecations#gemini-2.0-models). Os IDs dos modelos foram centralizados em `app/core/config.py`, com teste que impede novos IDs Gemini fixos nos demais arquivos Python de `app/`. O Koin precisa evitar outra dependência de identificadores espalhados e escolher o modelo de extração com evidência do pipeline real.
+
+**Decisão:** manter `vision_model = "gemini-3.5-flash-lite"`, usando esse ID estável específico em vez de `gemini-flash-lite-latest`. O default existente já corresponde à decisão, portanto não há alteração de produção. Os modelos continuam configuráveis por ambiente (`VISION_MODEL`, `CLASSIFIER_MODEL` e `CHAT_MODEL`). Uma troca futura de `vision_model` exige reexecutar as fixtures live com opt-in explícito e revisar os resultados antes de aprovar a mudança.
+
+**Escopo:** esta decisão avalia somente extração documental. `classifier_model` permanece inalterado e `chat_model` mantém a regra atual de override ou herança de `vision_model`. Os resultados deste benchmark não são evidência sobre qualidade de classificação ou chat.
+
+**Motivo e política de versionamento:** a decisão favorece reprodutibilidade da escolha do modelo. A [documentação oficial do Google sobre nomes de versões](https://ai.google.dev/gemini-api/docs/models#model-version-name-patterns) recomenda um modelo estável específico para a maioria das aplicações de produção e informa que aliases `latest` podem mudar o modelo subjacente.
+
+| Opção | Vantagens | Desvantagens |
+|---|---|---|
+| ID estável específico | Previsibilidade; reprodutibilidade; o benchmark identifica exatamente o modelo escolhido; mudanças explícitas e revisáveis. | Exige acompanhamento de depreciações e migração deliberada. |
+| Alias `latest` | Reduz manutenção manual quando uma nova versão é lançada. | O modelo subjacente pode mudar e introduzir regressão sem alteração no repositório; a evidência atual pode deixar de representar a versão executada no futuro. |
+
+**Evidência — benchmark de 07/10/2026:** uma rodada com quatro fixtures sintéticas (Itaú em duas colunas, Nubank, Bradesco e cupom fiscal) e dois modelos, totalizando oito casos parametrizados. Foram usados Python 3.12.5, pytest 7.4.4 e o pipeline real de prompts, parser e validator, com fallback para Mistral bloqueado no teste. Não houve repetição manual de casos; retries internos do provider permaneceram habilitados. Oito casos não significam necessariamente oito requisições HTTP.
+
+| Métrica | gemini-3.8-flash | gemini-3.5-flash-lite |
+|---|---:|---:|
+| Casos tentados | 4 | 4 |
+| Casos concluídos | 2 | 4 |
+| Erros técnicos | 2 | 0 |
+| Casos aprovados | 2 | 4 |
+| Falhas de qualidade | 0 | 0 |
+| Acurácia entre casos concluídos | 100% (2/2) | 100% (4/4) |
+| Itens corretos / esperados | 8/8 | 16/16 |
+| Totais corretos | 2/2 | 4/4 |
+| Tempo médio dos concluídos | 23,557 s | 11,361 s |
+| Tempo total dos concluídos | 47,113 s | 45,443 s |
+| Tempo total das tentativas | 116,498 s | 45,443 s |
+
+| Fixture | gemini-3.8-flash | gemini-3.5-flash-lite |
+|---|---|---|
+| `itau_two_columns.pdf` | TECHNICAL_ERROR — 36,477 s | PASS — 15,275 s |
+| `nubank.pdf` | PASS — 20,899 s | PASS — 9,820 s |
+| `bradesco.pdf` | TECHNICAL_ERROR — 32,908 s | PASS — 14,029 s |
+| `cupom_fiscal.png` | PASS — 26,214 s | PASS — 6,319 s |
+
+Os dois erros técnicos foram registrados como `ProviderExtractionError`; o relatório sanitizado não disponibilizou HTTP status nem causa específica. Erros técnicos não entram no denominador de acurácia e não são contados como itens ausentes. A latência dos concluídos exclui essas tentativas; o tempo total das tentativas as inclui. As médias dos modelos abrangem conjuntos diferentes de documentos (dois casos concluídos pelo Flash e quatro pelo Flash-Lite).
+
+> O Flash apresentou 100% de acerto nos dois casos tecnicamente concluídos, mas sua qualidade não pôde ser avaliada nas fixtures Itaú e Bradesco porque essas execuções terminaram em erro técnico.
+
+**Interpretação:** Flash-Lite concluiu as quatro fixtures sem erro técnico. Todos os casos concluídos por ambos os modelos apresentaram extração correta segundo os JSONs esperados. Flash-Lite foi mais rápido nos casos diretamente comparáveis (Nubank e cupom). As duas falhas técnicas do Flash reduziram a disponibilidade observada nesta rodada; a diferença observada foi de disponibilidade técnica e latência, não de acurácia entre os casos concluídos. Não há evidência nesta rodada que justifique substituir o default atual pelo Flash; portanto, `vision_model` permanece `gemini-3.5-flash-lite`.
+
+**Consequências:** configuração central, regressão verificável, maior previsibilidade e evidência de 4/4 para o modelo atual neste conjunto sintético. O projeto precisa acompanhar depreciações e promover migrações manualmente. Quatro fixtures constituem uma amostra pequena e não representam todo documento possível. O erro técnico do Flash nesta rodada não prova defeito permanente do modelo. Um ID estável identifica a versão escolhida, sem garantir respostas idênticas em todas as execuções.
+
+**Revalidação:** as fixtures e os JSONs esperados estão em [`tests/fixtures/documents`](../../tests/fixtures/documents/README.md); o comando, os pré-requisitos e os estados do benchmark estão documentados nesse README. O teste live continua opt-in e excluído explicitamente do CI normal.
+
+**Relação com N02 / issue #38:** este ADR mede qualidade e latência para escolha do modelo de extração. Medição persistente de tokens, custo por chamada/usuário/feature, limites de licença e circuit breaker pertencem à issue #38 e não fazem parte desta decisão.

@@ -1,0 +1,27 @@
+{
+  "document_type": "fatura_cartao",
+  "total_amount": 150.0,
+  "items": [
+    {
+      "description": "ASSINATURA TESTE QUASAR",
+      "amount": 35.9,
+      "date": "2025-12-15"
+    },
+    {
+      "description": "LIVRARIA TESTE NOVA",
+      "amount": 42.6,
+      "date": "2026-02-11"
+    },
+    {
+      "description": "LOJA TESTE PULSAR",
+      "amount": 70.0,
+      "is_installment": true,
+      "installment_current": 2,
+      "installment_total": 3
+    },
+    {
+      "description": "IOF TESTE ESTELAR",
+      "amount": 1.5
+    }
+  ]
+}
