@@ -29,11 +29,6 @@ async def upload_document(
         credit_card_id: Optional credit card ID to use saved password automatically
         force: Reprocessa o documento ja enviado em vez de retornar 409
     """
-    # Debug: log password info (not the password itself!)
-    if password:
-        print(
-            f"[UPLOAD] Password received - length: {len(password)}, repr: {repr(password[:3])}..."
-        )
 
     service = DocumentService(db)
     try:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from calendar import monthrange
 from datetime import date, timedelta
 
@@ -23,6 +24,8 @@ from app.modules.analytics.schemas.analytics import (
     PaymentMethodReport,
     PaymentMethodSummary,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class AnalyticsService:
@@ -494,42 +497,40 @@ class AnalyticsService:
                 leak_insights = await self._detect_leaks(expense_transactions, total_expense)
                 insights.extend(leak_insights)
             except Exception as e:
-                print(f"Error detecting leaks: {e}")
+                logger.error("get_insights_failed error_type=%s", type(e).__name__)
 
             # 2. Identificar principais drivers de gasto
             try:
                 driver_insights = await self._identify_drivers(expense_transactions, total_expense)
                 insights.extend(driver_insights)
             except Exception as e:
-                print(f"Error identifying drivers: {e}")
+                logger.error("get_insights_failed error_type=%s", type(e).__name__)
 
             # 3. Oportunidades de reducao
             try:
                 opportunity_insights = await self._find_opportunities(expense_transactions)
                 insights.extend(opportunity_insights)
             except Exception as e:
-                print(f"Error finding opportunities: {e}")
+                logger.error("get_insights_failed error_type=%s", type(e).__name__)
 
             # 4. Analise de cartoes de credito
             try:
                 credit_card_insights = await self._analyze_credit_cards(user)
                 insights.extend(credit_card_insights)
             except Exception as e:
-                print(f"Error analyzing credit cards: {e}")
+                logger.error("get_insights_failed error_type=%s", type(e).__name__)
 
             # 5. Analise de orcamento
             try:
                 budget_insights = await self._analyze_budget(user, start_date, end_date)
                 insights.extend(budget_insights)
             except Exception as e:
-                print(f"Error analyzing budget: {e}")
+                logger.error("get_insights_failed error_type=%s", type(e).__name__)
 
             return insights[:5]  # Top 5 insights
         except Exception as e:
-            print(f"Fatal error in get_insights: {e}")
-            import traceback
+            logger.error("get_insights_failed error_type=%s", type(e).__name__)
 
-            traceback.print_exc()
             raise
 
     async def get_spending_by_payment_method(
@@ -1019,10 +1020,7 @@ class AnalyticsService:
                 )
 
         except Exception as e:
-            print(f"Error in _analyze_credit_cards: {e}")
-            import traceback
-
-            traceback.print_exc()
+            logger.error("_analyze_credit_cards_failed error_type=%s", type(e).__name__)
 
         return insights
 
@@ -1115,9 +1113,6 @@ class AnalyticsService:
                 )
 
         except Exception as e:
-            print(f"Error in _analyze_budget: {e}")
-            import traceback
-
-            traceback.print_exc()
+            logger.error("_analyze_budget_failed error_type=%s", type(e).__name__)
 
         return insights

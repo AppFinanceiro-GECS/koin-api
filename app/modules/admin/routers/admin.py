@@ -1,3 +1,4 @@
+import logging
 import secrets
 from datetime import timedelta
 
@@ -24,6 +25,9 @@ from app.modules.admin.schemas.admin import (
 )
 from app.modules.auth.schemas.invitation import InvitationCreate, InvitationListResponse
 from app.modules.auth.services.user_setup import setup_new_user
+
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter()
 
@@ -348,7 +352,7 @@ async def create_license(
     )
 
     if not email_sent:
-        print(f"Aviso: Email nao enviado para {data.owner_email}")
+        logger.warning("email_delivery_failed")
 
     return LicenseResponse(
         id=license.id,
@@ -649,7 +653,7 @@ async def create_user(
     )
 
     if not email_sent:
-        print(f"Aviso: Email nao enviado para {data.email}")
+        logger.warning("email_delivery_failed")
 
     # Return placeholder response (user will be created when invitation is accepted)
     return UserAdminResponse(
@@ -883,7 +887,7 @@ async def create_invitation(
 
     if not email_sent:
         # Log mas nao falha - convite foi criado
-        print(f"Aviso: Email nao enviado para {data.email}")
+        logger.warning("email_delivery_failed")
 
     return InvitationListResponse(
         id=invitation.id,

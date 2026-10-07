@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
@@ -9,6 +10,8 @@ from .core.config import settings
 from .core.database import engine
 from .core.rate_limit import limiter, rate_limit_exceeded_handler
 from .routers import api_router
+
+logger = logging.getLogger(__name__)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -84,7 +87,7 @@ async def migrate_credit_card_transactions():
             if pending_count == 0:
                 return
 
-            print(f"Migrando {pending_count} transações de cartão para faturas...")
+            logger.info("Migrando %s transações de cartão para faturas...", pending_count)
 
             # Buscar transações pendentes
             result = await conn.execute(
@@ -174,15 +177,17 @@ async def migrate_credit_card_transactions():
             """)
             )
 
-            print(
-                f"Migração concluída: {len(transactions)} transações, {len(invoice_cache)} faturas."
+            logger.info(
+                "Migração concluída: %s transações, %s faturas.",
+                len(transactions),
+                len(invoice_cache),
             )
 
             # Liberar memória do cache após uso
             invoice_cache.clear()
 
     except Exception as e:
-        print(f"Aviso: Migração de transações de cartão falhou: {e}")
+        logger.error("migrate_credit_card_transactions_failed error_type=%s", type(e).__name__)
 
 
 @asynccontextmanager
@@ -194,14 +199,14 @@ async def lifespan(app: FastAPI):
         async with engine.begin():
             pass
     except Exception as e:
-        print(f"Aviso: Conexão inicial com banco falhou: {e}")
+        logger.error("lifespan_failed error_type=%s", type(e).__name__)
 
     # Start APScheduler (replaces Celery Beat)
     # Migration de cartões roda via scheduler 30s após boot (não bloqueia startup)
     try:
         await start_scheduler()
     except Exception as e:
-        print(f"Aviso: Scheduler não iniciou: {e}")
+        logger.error("lifespan_failed error_type=%s", type(e).__name__)
 
     yield
 

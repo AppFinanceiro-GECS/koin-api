@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 from datetime import date
 
 from fastapi import APIRouter, HTTPException, Query
@@ -23,6 +24,9 @@ from app.modules.transactions.schemas.transaction import (
     TransactionUpdate,
 )
 from app.modules.transactions.services.transaction_service import TransactionService
+
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter()
 
@@ -294,19 +298,11 @@ async def batch_confirm_transactions(
                 updated = False
                 if data.card_closing_day and 1 <= data.card_closing_day <= 31:
                     if credit_card.closing_day != data.card_closing_day:
-                        print(
-                            f"[BATCH_CONFIRM] Atualizando closing_day do cartao {credit_card_id}: "
-                            f"{credit_card.closing_day} -> {data.card_closing_day}"
-                        )
                         credit_card.closing_day = data.card_closing_day
                         updated = True
 
                 if data.card_due_day and 1 <= data.card_due_day <= 31:
                     if credit_card.due_day != data.card_due_day:
-                        print(
-                            f"[BATCH_CONFIRM] Atualizando due_day do cartao {credit_card_id}: "
-                            f"{credit_card.due_day} -> {data.card_due_day}"
-                        )
                         credit_card.due_day = data.card_due_day
                         updated = True
 
@@ -415,9 +411,10 @@ async def batch_confirm_transactions(
             projected_txs = projected_result.scalars().all()
 
             if projected_txs:
-                print(
-                    f"[BATCH_CONFIRM] Removendo {len(projected_txs)} transações projetadas "
-                    f"da fatura {invoice_id} (PDF é fonte de verdade)"
+                logger.info(
+                    "[BATCH_CONFIRM] Removendo %s transações projetadas da fatura %s (PDF é fonte de verdade)",
+                    len(projected_txs),
+                    invoice_id,
                 )
 
                 # Ajustar installment_series: decrementar contadores
@@ -450,9 +447,6 @@ async def batch_confirm_transactions(
                         .where(InstallmentSeries.id == series_id)
                         .values(paid_count=actual_paid)
                     )
-                    print(
-                        f"[BATCH_CONFIRM] Série {series_id}: paid_count atualizado para {actual_paid}"
-                    )
 
                 await db.flush()
 
@@ -467,9 +461,6 @@ async def batch_confirm_transactions(
                 if invoice:
                     invoice_service = InvoiceService(db)
                     await invoice_service.update_invoice_total(invoice, force_recalculate=True)
-                    print(
-                        f"[BATCH_CONFIRM] Fatura {invoice_id}: total recalculado para {invoice.total_amount}"
-                    )
 
     await db.commit()  # ← COMMIT para persistir todas as mudanças nas faturas!
 

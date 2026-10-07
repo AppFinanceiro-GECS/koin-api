@@ -2,12 +2,16 @@
 
 import asyncio
 import io
+import logging
 from pathlib import Path
 
 from app.core.config import settings
 
 from ..document_classifier import DocumentClassifier, DocumentType
 from .base import BaseProvider
+
+logger = logging.getLogger(__name__)
+
 
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_DELAY = 2.0
@@ -46,7 +50,7 @@ async def get_mistral_client():
 
             # Cliente singleton - a biblioteca Mistral gerencia conexoes internamente
             _mistral_client = Mistral(api_key=api_key)
-            print("[MistralProvider] Cliente Mistral singleton inicializado")
+            logger.info("[MistralProvider] Cliente Mistral singleton inicializado")
             return _mistral_client
 
         except ImportError:
@@ -87,9 +91,6 @@ def compress_image_sync(image_bytes: bytes, max_size_mb: float = MAX_IMAGE_SIZE_
             img.save(buffer, format="JPEG", quality=quality, optimize=True)
             if buffer.tell() <= max_size:
                 result = buffer.getvalue()
-                print(
-                    f"[MistralProvider] Imagem comprimida: {len(image_bytes)} -> {len(result)} bytes (quality={quality})"
-                )
                 return result
 
         # Se ainda muito grande, redimensionar
@@ -103,18 +104,14 @@ def compress_image_sync(image_bytes: bytes, max_size_mb: float = MAX_IMAGE_SIZE_
             resized.close()  # Fechar imagem redimensionada imediatamente
             if buffer.tell() <= max_size:
                 result = buffer.getvalue()
-                print(
-                    f"[MistralProvider] Imagem redimensionada e comprimida: {len(image_bytes)} -> {len(result)} bytes (scale={scale})"
-                )
                 return result
 
         # Retornar ultima tentativa mesmo se ainda grande
         result = buffer.getvalue()
-        print(f"[MistralProvider] AVISO: Imagem ainda grande apos compressao: {len(result)} bytes")
         return result
 
     except Exception as e:
-        print(f"[MistralProvider] Erro ao comprimir imagem: {e}")
+        logger.error("compress_image_sync_failed error_type=%s", type(e).__name__)
         return image_bytes
 
     finally:
@@ -143,7 +140,7 @@ class MistralProvider(BaseProvider):
         self.prompt = prompt
         self._parse_response = parse_response_fn or (lambda x: {"items": [], "error": "No parser"})
         self.classifier = DocumentClassifier() if use_classifier else None
-        print(f"[MistralProvider] Initialized with classifier={use_classifier}")
+        logger.info("[MistralProvider] Initialized with classifier=%s", use_classifier)
 
     def _upload_sync(self, client, pdf_content: bytes, filename: str):
         """Upload sincrono do PDF para Mistral"""
@@ -186,20 +183,24 @@ class MistralProvider(BaseProvider):
 
         # Usar novo classificador se disponivel
         if self.classifier:
-            print("[MistralProvider] Usando DocumentClassifier...")
+            logger.info("[MistralProvider] Usando DocumentClassifier...")
             doc_type_enum = await self.classifier.classify(ocr_text, max_chars=3000)
 
             if doc_type_enum == DocumentType.CUPOM_FISCAL:
                 doc_type = "cupom_fiscal"
                 prompt_path = prompts_dir / "cupom_fiscal_focused.md"
-                print("[MistralProvider] Tipo detectado: CUPOM_FISCAL -> usando prompt focado")
+                logger.info(
+                    "[MistralProvider] Tipo detectado: CUPOM_FISCAL -> usando prompt focado"
+                )
             elif doc_type_enum == DocumentType.FATURA_CARTAO:
                 doc_type = "fatura_cartao"
                 prompt_path = prompts_dir / "fatura_cartao_focused.md"
-                print("[MistralProvider] Tipo detectado: FATURA_CARTAO -> usando prompt focado")
+                logger.info(
+                    "[MistralProvider] Tipo detectado: FATURA_CARTAO -> usando prompt focado"
+                )
             else:
                 # Fallback: usar metodo antigo
-                print("[MistralProvider] Tipo UNKNOWN, usando deteccao antiga...")
+                logger.info("[MistralProvider] Tipo UNKNOWN, usando deteccao antiga...")
                 doc_type = self._detect_document_type(ocr_text)
                 if doc_type == "cupom_fiscal":
                     prompt_path = prompts_dir / "cupom_fiscal_focused.md"
@@ -208,7 +209,7 @@ class MistralProvider(BaseProvider):
         else:
             # Fallback: usar metodo antigo
             doc_type = self._detect_document_type(ocr_text)
-            print(f"[MistralProvider] Tipo detectado (metodo antigo): {doc_type}")
+            logger.info("[MistralProvider] Tipo detectado (metodo antigo): %s", doc_type)
 
             if doc_type == "cupom_fiscal":
                 prompt_path = prompts_dir / "cupom_fiscal_focused.md"
@@ -218,12 +219,8 @@ class MistralProvider(BaseProvider):
         # Carregar prompt base
         if prompt_path.exists():
             prompt_text = prompt_path.read_text(encoding="utf-8")
-            print(f"[MistralProvider] Prompt base carregado: {prompt_path.name}")
         else:
             # Fallback: prompt generico
-            print(
-                f"[MistralProvider] AVISO: Prompt {prompt_path} nao encontrado, usando self.prompt"
-            )
             prompt_text = self.prompt
 
         # Se for fatura de cartão, tentar carregar prompt específico do banco
@@ -235,11 +232,6 @@ class MistralProvider(BaseProvider):
                     bank_prompt = bank_prompt_path.read_text(encoding="utf-8")
                     # Compor: prompt geral + prompt específico do banco
                     prompt_text = f"{prompt_text}\n\n{bank_prompt}"
-                    print(f"[MistralProvider] Prompt específico do banco '{bank_name}' adicionado")
-                else:
-                    print(
-                        f"[MistralProvider] Banco '{bank_name}' detectado mas sem prompt específico"
-                    )
 
         return prompt_text, doc_type
 
@@ -270,9 +262,6 @@ class MistralProvider(BaseProvider):
         for bank_name, indicators in bank_indicators.items():
             for indicator in indicators:
                 if indicator in text_lower:
-                    print(
-                        f"[MistralProvider] Banco detectado: {bank_name} (indicador: '{indicator}')"
-                    )
                     return bank_name
 
         return None
@@ -320,8 +309,6 @@ class MistralProvider(BaseProvider):
         cupom_score = sum(1 for indicator in cupom_indicators if indicator in text_lower)
         fatura_score = sum(1 for indicator in fatura_indicators if indicator in text_lower)
 
-        print(f"[MistralProvider] Score cupom: {cupom_score}, Score fatura: {fatura_score}")
-
         return "cupom_fiscal" if cupom_score > fatura_score else "fatura_cartao"
 
     async def extract_from_image(
@@ -340,9 +327,8 @@ class MistralProvider(BaseProvider):
 
     async def extract_multi_page(self, images: list[tuple[bytes, str]]) -> dict:
         """Converte multiplas imagens para PDF e processa via OCR"""
-        print(f"[MistralProvider] Convertendo {len(images)} imagens para PDF...")
+        logger.info("[MistralProvider] Convertendo %s imagens para PDF...", len(images))
         pdf_content = await self._images_to_pdf(images)
-        print(f"[MistralProvider] PDF gerado: {len(pdf_content)} bytes")
         return await self.extract_from_pdf(pdf_content, "multi_page.pdf")
 
     async def _image_to_pdf(self, image_content: bytes, mime_type: str) -> bytes:
@@ -388,9 +374,6 @@ class MistralProvider(BaseProvider):
                 section = img.crop((0, top, width, bottom))
                 sections.append(section)
 
-            print(
-                f"[MistralProvider] Imagem longa detectada (ratio={ratio:.1f}), dividida em {len(sections)} seções"
-            )
             return sections, True
 
         def _convert():
@@ -472,7 +455,7 @@ class MistralProvider(BaseProvider):
         try:
             import fitz  # PyMuPDF
         except ImportError:
-            print("[MistralProvider] PyMuPDF não instalado, não é possível dividir PDF longo")
+            logger.info("[MistralProvider] PyMuPDF não instalado, não é possível dividir PDF longo")
             return pdf_content
 
         # Import PasswordRequiredException
@@ -518,12 +501,15 @@ class MistralProvider(BaseProvider):
                 # PDF was password-protected
                 # Mistral OCR has issues with decrypted PDFs (corrupts content)
                 # Return None to force fallback to image-based processing
-                print("[MistralProvider] PDF was encrypted - forcing image-based processing...")
+                logger.info(
+                    "[MistralProvider] PDF was encrypted - forcing image-based processing..."
+                )
                 doc.close()
                 return None  # Force fallback to convert_pdf_to_images
 
-            print(
-                f"[MistralProvider] PDF com página longa detectado, processando {len(doc)} página(s)..."
+            logger.info(
+                "[MistralProvider] PDF com página longa detectado, processando %s página(s)...",
+                len(doc),
             )
 
             # Segunda passagem: processar pagina por pagina
@@ -563,8 +549,10 @@ class MistralProvider(BaseProvider):
 
                         # Fechar imagem original apos dividir (as sections sao novas)
                         img.close()
-                        print(
-                            f"[MistralProvider] Página {page_num + 1} dividida em {num_sections} seções"
+                        logger.info(
+                            "[MistralProvider] Página %s dividida em %s seções",
+                            page_num + 1,
+                            num_sections,
                         )
 
                     # GC periodico
@@ -583,7 +571,7 @@ class MistralProvider(BaseProvider):
                     )
 
                 result = output.getvalue()
-                print(f"[MistralProvider] PDF recriado com {len(final_images)} páginas")
+                logger.info("[MistralProvider] PDF recriado com %s páginas", len(final_images))
                 return result
 
             finally:
@@ -648,12 +636,12 @@ class MistralProvider(BaseProvider):
 
             annotation_format = response_format_from_pydantic_model(AnnotationExtracao)
         except (ImportError, Exception) as e:
-            print(f"[MistralProvider] Cannot create annotation format: {e}")
+            logger.error("_try_annotation_extraction_failed error_type=%s", type(e).__name__)
             return None, ""
 
         annotation_prompt = self._build_annotation_prompt(bank_prompt)
 
-        print("[MistralProvider] Trying document_annotation (single-call extraction)...")
+        logger.info("[MistralProvider] Trying document_annotation (single-call extraction)...")
 
         try:
             ocr_response = await asyncio.to_thread(
@@ -664,7 +652,7 @@ class MistralProvider(BaseProvider):
                 annotation_prompt,
             )
         except Exception as e:
-            print(f"[MistralProvider] document_annotation call failed: {type(e).__name__}: {e}")
+            logger.error("_try_annotation_extraction_failed error_type=%s", type(e).__name__)
             return None, ""
 
         # Extract OCR text (always available)
@@ -680,23 +668,23 @@ class MistralProvider(BaseProvider):
         if annotation_json is None or (
             hasattr(annotation_json, "__class__") and "UNSET" in str(type(annotation_json))
         ):
-            print("[MistralProvider] document_annotation returned no structured data")
+            logger.info("[MistralProvider] document_annotation returned no structured data")
             return None, ocr_text
 
         if not isinstance(annotation_json, str) or not annotation_json.strip():
-            print(
-                f"[MistralProvider] document_annotation empty or invalid type: {type(annotation_json)}"
+            logger.info(
+                "[MistralProvider] document_annotation empty or invalid type: %s",
+                type(annotation_json),
             )
             return None, ocr_text
 
-        print(f"[MistralProvider] document_annotation returned {len(annotation_json)} chars")
-        print(f"[MistralProvider] annotation preview: {annotation_json[:500]}")
+        logger.info("[MistralProvider] document_annotation returned %s chars", len(annotation_json))
 
         # Parse through existing parser (handles normalization, validation, etc.)
         result = self._parse_response(annotation_json)
 
         if not result.get("items"):
-            print("[MistralProvider] document_annotation parsed but no items found")
+            logger.info("[MistralProvider] document_annotation parsed but no items found")
             return None, ocr_text
 
         # Validate sum
@@ -707,21 +695,12 @@ class MistralProvider(BaseProvider):
         )
 
         if total_amount and abs(total_amount - items_sum) <= 100:
-            print(
-                f"[MistralProvider] ✅ document_annotation SUCCESS: {len(result['items'])} items, "
-                f"sum={items_sum:.2f}, total={total_amount:.2f}, diff={abs(total_amount - items_sum):.2f}"
-            )
             result["_ocr_text"] = ocr_text
             result["_ocr_text_preview"] = (
                 ocr_text[:500] + "..." if len(ocr_text) > 500 else ocr_text
             )
             return result, ocr_text
         else:
-            diff = abs(total_amount - items_sum) if total_amount else 0
-            print(
-                f"[MistralProvider] ⚠️ document_annotation sum mismatch: "
-                f"sum={items_sum:.2f}, total={total_amount}, diff={diff:.2f} (>R$100) — falling back to LLM"
-            )
             # Return annotation result as candidate (might still be better than LLM)
             result["_ocr_text"] = ocr_text
             result["_ocr_text_preview"] = (
@@ -754,7 +733,7 @@ class MistralProvider(BaseProvider):
 
         # If password-protected PDF, fallback to image processing
         if pdf_content is None:
-            print("[MistralProvider] Returning None to force image-based processing")
+            logger.info("[MistralProvider] Returning None to force image-based processing")
             return None
 
         try:
@@ -764,11 +743,12 @@ class MistralProvider(BaseProvider):
 
         try:
             # Step 1: Upload PDF (single upload, reused for annotation and fallback)
-            print(f"[MistralProvider] Passo 1: Fazendo upload do PDF ({len(pdf_content)} bytes)...")
+            logger.info(
+                "[MistralProvider] Passo 1: Fazendo upload do PDF (%s bytes)...", len(pdf_content)
+            )
             uploaded_file = await asyncio.to_thread(
                 self._upload_sync, client, pdf_content, filename
             )
-            print(f"[MistralProvider] Upload concluido: {uploaded_file.id}")
 
             # Step 2: Try document_annotation (OCR + structured extraction in 1 call)
             # Uses generic prompt since we don't know the bank yet
@@ -778,7 +758,7 @@ class MistralProvider(BaseProvider):
 
             # If annotation returned no OCR text, do a separate OCR call (reuse file_id)
             if not ocr_text.strip():
-                print(
+                logger.info(
                     "[MistralProvider] Annotation didn't return OCR text, doing separate OCR (reusing file_id)..."
                 )
                 ocr_response = await asyncio.to_thread(self._ocr_sync, client, uploaded_file.id)
@@ -787,8 +767,7 @@ class MistralProvider(BaseProvider):
                         if hasattr(page, "markdown"):
                             ocr_text += page.markdown + "\n\n"
 
-            print(f"[MistralProvider] OCR extraiu {len(ocr_text)} caracteres")
-            print(f"[MistralProvider] OCR texto preview: {ocr_text[:500]}")
+            logger.info("[MistralProvider] OCR extraiu %s caracteres", len(ocr_text))
 
             if not ocr_text.strip():
                 return {
@@ -800,18 +779,18 @@ class MistralProvider(BaseProvider):
 
             # If annotation succeeded with good sum match, return it directly
             if annotation_result and not annotation_result.get("_annotation_candidate"):
-                print("[MistralProvider] Using document_annotation result (perfect match)")
+                logger.info("[MistralProvider] Using document_annotation result (perfect match)")
                 return annotation_result
 
             # Step 3: Fallback to OCR text + LLM chat
-            print(
-                f"[MistralProvider] Passo 3: Estruturando com LLM {settings.mistral_llm_model}..."
+            logger.info(
+                "[MistralProvider] Passo 3: Estruturando com LLM %s...", settings.mistral_llm_model
             )
 
             prompt, detected_doc_type = await self._get_prompt(ocr_text)
             full_prompt = f"{prompt}\n\n## Texto extraido do PDF pelo OCR:\n\n{ocr_text}"
 
-            print(f"[MistralProvider] Tipo final detectado: {detected_doc_type}")
+            logger.info("[MistralProvider] Tipo final detectado: %s", detected_doc_type)
 
             last_error = None
             for attempt in range(self.max_retries):
@@ -819,7 +798,7 @@ class MistralProvider(BaseProvider):
                     chat_response = await asyncio.to_thread(self._chat_sync, client, full_prompt)
 
                     response_text = chat_response.choices[0].message.content
-                    print(f"[MistralProvider] LLM retornou {len(response_text)} caracteres")
+                    logger.info("[MistralProvider] LLM retornou %s caracteres", len(response_text))
 
                     llm_result = self._parse_response(response_text)
 
@@ -846,14 +825,18 @@ class MistralProvider(BaseProvider):
                     last_error = e
                     if self._is_retryable_error(e) and attempt < self.max_retries - 1:
                         wait_time = self.retry_delay * (2**attempt)
-                        print(f"[MistralProvider] Erro retryable, aguardando {wait_time}s...")
+                        logger.info(
+                            "[MistralProvider] Erro retryable, aguardando %ss...", wait_time
+                        )
                         await asyncio.sleep(wait_time)
                         continue
                     else:
                         # LLM failed — use annotation as fallback if available
                         if annotation_result and annotation_result.get("items"):
-                            print(
-                                f"[MistralProvider] LLM failed ({type(e).__name__}), using annotation fallback ({len(annotation_result['items'])} items)"
+                            logger.info(
+                                "[MistralProvider] LLM failed (%s), using annotation fallback (%s items)",
+                                type(e).__name__,
+                                len(annotation_result["items"]),
                             )
                             annotation_result.pop("_annotation_candidate", None)
                             return annotation_result
@@ -861,8 +844,9 @@ class MistralProvider(BaseProvider):
 
             # If LLM loop exhausted but annotation had a candidate, use it
             if annotation_result and annotation_result.get("items"):
-                print(
-                    f"[MistralProvider] LLM exhausted retries, using annotation fallback ({len(annotation_result['items'])} items)"
+                logger.info(
+                    "[MistralProvider] LLM exhausted retries, using annotation fallback (%s items)",
+                    len(annotation_result["items"]),
                 )
                 annotation_result.pop("_annotation_candidate", None)
                 return annotation_result
@@ -870,10 +854,8 @@ class MistralProvider(BaseProvider):
             return {"items": [], "error": f"Falha apos {self.max_retries} tentativas: {last_error}"}
 
         except Exception as e:
-            print(f"[MistralProvider] Erro: {type(e).__name__}: {str(e)}")
-            import traceback
+            logger.error("extract_from_pdf_failed error_type=%s", type(e).__name__)
 
-            traceback.print_exc()
             return {
                 "items": [],
                 "card_info": None,
@@ -898,12 +880,8 @@ class MistralProvider(BaseProvider):
         score_b = _score(result_b)
 
         if score_a <= score_b:
-            print(
-                f"[MistralProvider] Picked result A (annotation): diff={score_a:.2f} vs {score_b:.2f}"
-            )
             return result_a
         else:
-            print(f"[MistralProvider] Picked result B (LLM): diff={score_b:.2f} vs {score_a:.2f}")
             return result_b
 
     def _find_missing_amounts_in_ocr(self, ocr_text: str, extracted_items: list) -> list[str]:
@@ -987,10 +965,7 @@ class MistralProvider(BaseProvider):
         if abs(diff) <= 50:
             return result
 
-        print(
-            f"[MistralProvider] Sum mismatch: items_sum={items_sum:.2f}, total={total_amount:.2f}, faltam={diff:.2f}"
-        )
-        print("[MistralProvider] Retrying with feedback...")
+        logger.info("[MistralProvider] Retrying with feedback...")
 
         # Identify specific missing amounts from OCR text
         missing_amounts_info = self._find_missing_amounts_in_ocr(ocr_text, result["items"])
@@ -1014,15 +989,13 @@ class MistralProvider(BaseProvider):
             f"**REFAÇA A EXTRAÇÃO COMPLETA. Extraia TODOS os itens de TODAS as colunas de lançamentos atuais.**\n"
         )
 
-        print(f"[MistralProvider] Missing amounts from OCR:\n{missing_details}")
-
         retry_prompt = full_prompt + feedback
         retry_result = None
 
         try:
             retry_response = await asyncio.to_thread(self._chat_sync, client, retry_prompt)
             retry_text = retry_response.choices[0].message.content
-            print(f"[MistralProvider] Retry LLM retornou {len(retry_text)} caracteres")
+            logger.info("[MistralProvider] Retry LLM retornou %s caracteres", len(retry_text))
 
             retry_result = self._parse_response(retry_text)
 
@@ -1036,20 +1009,13 @@ class MistralProvider(BaseProvider):
                 original_diff = abs(diff)
 
                 if retry_diff < original_diff:
-                    print(
-                        f"[MistralProvider] Retry improved: diff {original_diff:.2f} -> {retry_diff:.2f}"
-                    )
                     retry_result["_ocr_text"] = ocr_text
                     retry_result["_ocr_text_preview"] = (
                         ocr_text[:500] + "..." if len(ocr_text) > 500 else ocr_text
                     )
                     return retry_result
-                else:
-                    print(
-                        f"[MistralProvider] Retry did not improve: {retry_diff:.2f} >= {original_diff:.2f}, keeping original"
-                    )
         except Exception as e:
-            print(f"[MistralProvider] Retry failed: {e}")
+            logger.error("_retry_if_sum_mismatch_failed error_type=%s", type(e).__name__)
 
         # If retry didn't help enough, try OCR-based recovery
         best_result = result
@@ -1118,11 +1084,12 @@ class MistralProvider(BaseProvider):
 
         relevant_text = ocr_text[lancamentos_start:lancamentos_end]
         if not relevant_text:
-            print("[MistralProvider] OCR recovery: no relevant section found in OCR text")
+            logger.info("[MistralProvider] OCR recovery: no relevant section found in OCR text")
             return None
 
-        print(
-            f"[MistralProvider] OCR recovery: scanning {len(relevant_text)} chars of relevant OCR text"
+        logger.info(
+            "[MistralProvider] OCR recovery: scanning %s chars of relevant OCR text",
+            len(relevant_text),
         )
 
         # Parse transaction lines: DD/MM description amount
@@ -1152,11 +1119,12 @@ class MistralProvider(BaseProvider):
             )
 
         if not ocr_transactions:
-            print("[MistralProvider] OCR recovery: no transaction lines found in OCR text")
+            logger.info("[MistralProvider] OCR recovery: no transaction lines found in OCR text")
             return None
 
-        print(
-            f"[MistralProvider] OCR recovery: found {len(ocr_transactions)} transactions in OCR text"
+        logger.info(
+            "[MistralProvider] OCR recovery: found %s transactions in OCR text",
+            len(ocr_transactions),
         )
 
         # Find which OCR transactions are missing from extracted items
@@ -1181,7 +1149,7 @@ class MistralProvider(BaseProvider):
                 missing_txs.append(ocr_tx)
 
         if not missing_txs:
-            print("[MistralProvider] OCR recovery: all OCR transactions already matched")
+            logger.info("[MistralProvider] OCR recovery: all OCR transactions already matched")
             return None
 
         # Build new items from missing transactions
@@ -1223,9 +1191,6 @@ class MistralProvider(BaseProvider):
                 "installment_total": installment_total,
             }
             new_items.append(new_item)
-            print(
-                f"[MistralProvider] OCR recovery: adding '{tx['description']}' R${tx['amount']:.2f} ({date_str})"
-            )
 
         if not new_items:
             return None
@@ -1237,14 +1202,7 @@ class MistralProvider(BaseProvider):
         new_sum = current_sum + sum(item["amount"] for item in new_items if item["amount"] > 0)
 
         if abs(new_sum - total_amount) >= abs(current_sum - total_amount):
-            print(
-                f"[MistralProvider] OCR recovery: would not improve sum ({current_sum:.2f} -> {new_sum:.2f}, target {total_amount:.2f}), skipping"
-            )
             return None
-
-        print(
-            f"[MistralProvider] OCR recovery: improved sum {current_sum:.2f} -> {new_sum:.2f} (target {total_amount:.2f}), added {len(new_items)} items"
-        )
 
         updated_result = dict(result)
         updated_result["items"] = list(result["items"]) + new_items

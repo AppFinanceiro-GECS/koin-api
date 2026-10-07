@@ -3,6 +3,8 @@ Rotas para gerenciamento de familia/household.
 Permite ao owner convidar membros e gerenciar a familia.
 """
 
+import logging
+
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
@@ -18,6 +20,9 @@ from app.modules.household.schemas.household import (
     FamilyInviteResponse,
     HouseholdMemberResponse,
 )
+
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter()
 
@@ -218,7 +223,7 @@ async def invite_member(
     )
 
     if not email_sent:
-        print(f"Aviso: Email nao enviado para {data.email}")
+        logger.warning("email_delivery_failed")
 
     # Status pode ser Enum ou string dependendo de como foi carregado
     status_value = (
