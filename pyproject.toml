@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = ["live: tests that call external AI APIs and require explicit opt-in"]
 
 [tool.ruff]
 line-length = 100

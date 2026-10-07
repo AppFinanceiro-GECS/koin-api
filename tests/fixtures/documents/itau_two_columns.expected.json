@@ -1,0 +1,30 @@
+{
+  "document_type": "fatura_cartao",
+  "total_amount": 280.0,
+  "items": [
+    {
+      "description": "LOJA TESTE ORBITA",
+      "amount": 120.4,
+      "date": "2026-01-15",
+      "is_installment": true,
+      "installment_current": 3,
+      "installment_total": 6
+    },
+    {
+      "description": "LOJA TESTE NEBULA",
+      "amount": 80.1,
+      "date": "2026-02-10",
+      "is_installment": true,
+      "installment_current": 5,
+      "installment_total": 10
+    },
+    {
+      "description": "MERCADO TESTE LUNAR",
+      "amount": 54.35
+    },
+    {
+      "description": "PADARIA TESTE COMETA",
+      "amount": 25.15
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "document_type": "fatura_cartao",
+  "total_amount": 160.0,
+  "items": [
+    {
+      "description": "LOJA TESTE METEORO",
+      "amount": 90.5,
+      "is_installment": true,
+      "installment_current": 4,
+      "installment_total": 12
+    },
+    {
+      "description": "MERCADO TESTE GALAXIA",
+      "amount": 64.2
+    },
+    {
+      "description": "ESTORNO TESTE GALAXIA",
+      "amount": -14.2
+    },
+    {
+      "description": "FARMACIA TESTE AURORA",
+      "amount": 19.5
+    }
+  ]
+}
