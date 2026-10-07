@@ -1,8 +1,12 @@
 """Validacao e limpeza de dados extraidos de faturas"""
 
+import logging
 import re
 
 # Padroes de descricao que indicam totais/resumos (nao sao transacoes reais)
+logger = logging.getLogger(__name__)
+
+
 INVALID_DESCRIPTIONS = [
     "despesas do mes",
     "fatura atual",
@@ -139,14 +143,14 @@ class ExtractionValidator:
             )
 
             if is_duplicate:
-                print(
-                    f"[Validator] Removendo item duplicado consecutivo: {current.get('description', '')[:30]}"
-                )
+                pass
             else:
                 result.append(current)
 
         if len(result) < len(items):
-            print(f"[Validator] Deduplicação consecutiva: {len(items)} -> {len(result)} itens")
+            logger.debug(
+                "[Validator] Deduplicação consecutiva: %s -> %s itens", len(items), len(result)
+            )
 
         return result
 
@@ -168,21 +172,11 @@ class ExtractionValidator:
 
         # Se soma está próxima do total (±1%), não há duplicatas significativas
         if abs(diferenca) <= total_amount * 0.01:
-            print(
-                f"[Validator] Soma ({soma_atual:.2f}) próxima do total ({total_amount:.2f}), sem dedup necessária"
-            )
             return items
 
         # Se soma < total, não há duplicatas (pode haver itens faltando)
         if diferenca < 0:
-            print(
-                f"[Validator] Soma ({soma_atual:.2f}) menor que total ({total_amount:.2f}), itens podem estar faltando"
-            )
             return items
-
-        print(
-            f"[Validator] Possíveis duplicatas: soma={soma_atual:.2f}, total={total_amount:.2f}, excesso={diferenca:.2f}"
-        )
 
         # Agrupar itens por (descrição, valor, data)
         from collections import defaultdict
@@ -214,9 +208,6 @@ class ExtractionValidator:
             if soma_atual - soma_removida - amount >= total_amount - (total_amount * 0.01):
                 indices_to_remove.add(idx)
                 soma_removida += amount
-                print(
-                    f"[Validator] Removendo duplicata: {items[idx].get('description', '')[:40]} R${amount:.2f}"
-                )
 
             # Parar se já removemos o suficiente
             if abs((soma_atual - soma_removida) - total_amount) <= total_amount * 0.01:
@@ -224,10 +215,6 @@ class ExtractionValidator:
 
         if indices_to_remove:
             result = [item for idx, item in enumerate(items) if idx not in indices_to_remove]
-            nova_soma = sum(item.get("amount", 0) for item in result)
-            print(
-                f"[Validator] Deduplicação por total: {len(items)} -> {len(result)} itens (soma: {soma_atual:.2f} -> {nova_soma:.2f})"
-            )
             return result
 
         return items
@@ -249,10 +236,6 @@ class ExtractionValidator:
         if diferenca <= 0.01:
             return items
 
-        print(
-            f"[Validator] Desconto detectado: soma={soma_items:.2f}, total={total_amount:.2f}, desconto={diferenca:.2f}"
-        )
-
         # Distribuir proporcionalmente
         for item in compra_items:
             amount = item.get("amount", 0)
@@ -267,10 +250,6 @@ class ExtractionValidator:
                 item["original_amount"] = amount
                 item["discount_amount"] = desconto_real
                 item["amount"] = novo_amount
-
-                print(
-                    f"[Validator] {item['description'][:30]}: {amount:.2f} -> {novo_amount:.2f} (desc: {desconto_real:.2f})"
-                )
 
         return items
 
@@ -345,12 +324,12 @@ class ExtractionValidator:
                     is_section_header = True
 
             if is_section_header:
-                print(f"[Validator] Removendo header de secao: '{desc}' R${amount:.2f}")
+                pass
             else:
                 result.append(item)
 
         if len(result) < len(items):
-            print(f"[Validator] Removidos {len(items) - len(result)} headers de secao")
+            logger.debug("[Validator] Removidos %s headers de secao", len(items) - len(result))
 
         return result
 
@@ -403,13 +382,6 @@ class ExtractionValidator:
         # Se a soma das compras ja esta proxima do total, remover pagamentos de fatura anterior
         if abs(soma_compras - total_amount) < 50:
             # Os pagamentos de fatura sao da fatura anterior - remover
-            for pag in pagamentos_fatura:
-                print(
-                    f"[Validator] Removendo pagamento de fatura anterior: '{pag['description']}' R${pag['amount']:.2f}"
-                )
-            print(
-                f"[Validator] Soma das compras: R${soma_compras:.2f} ≈ total fatura: R${total_amount:.2f}"
-            )
             return outros_items
 
         # Se nao, verificar se algum pagamento especifico pode ser da fatura anterior
@@ -420,9 +392,6 @@ class ExtractionValidator:
             # Se remover este pagamento, a soma fica proxima do total?
             soma_sem_este = soma_compras
             if abs(soma_sem_este - total_amount) < 50:
-                print(
-                    f"[Validator] Removendo pagamento de fatura anterior: '{pag['description']}' R${pag['amount']:.2f}"
-                )
                 removed_any = True
             else:
                 items_to_keep.append(pag)
@@ -457,9 +426,6 @@ class ExtractionValidator:
                 )
 
                 if not is_likely_merchant:
-                    print(
-                        f"[Validator] Fixing payment amount: '{item['description']}' {amount} -> {-amount}"
-                    )
                     item["amount"] = -amount
                     item["transaction_type"] = "pagamento"
                     item["category"] = "pagamento"
@@ -476,9 +442,6 @@ class ExtractionValidator:
             if "iof" in desc:
                 amount = item.get("amount", 0)
                 if amount < 0:
-                    print(
-                        f"[Validator] IOF com valor negativo corrigido: '{item.get('description', '')[:40]}' {amount} -> {-amount}"
-                    )
                     item["amount"] = -amount
                 if item.get("transaction_type") not in ("encargo",):
                     item["transaction_type"] = "encargo"
@@ -491,32 +454,19 @@ class ExtractionValidator:
         if not items:
             return items
 
-        INVERTED_ISSUERS = ["leroymerlin", "celebre", "pefisa"]
-        card_issuer = (card_info.get("card_issuer") or "").lower() if card_info else ""
-
         compras = [
             i for i in items if i.get("transaction_type") in ("compra", "anuidade", "encargo")
         ]
 
         compras_negativas = sum(1 for c in compras if c.get("amount", 0) < 0)
 
-        is_known_inverted = any(issuer in card_issuer for issuer in INVERTED_ISSUERS)
-
         auto_detect_inverted = len(compras) > 0 and compras_negativas / len(compras) > 0.7
 
         if auto_detect_inverted:
-            reason = (
-                f"emissor conhecido ({card_issuer})" if is_known_inverted else "deteccao automatica"
-            )
-            print(f"[Validator] Convencao de sinais invertida detectada ({reason}). Corrigindo...")
-
             for item in items:
                 amount = item.get("amount", 0)
                 if amount != 0:
                     item["amount"] = -amount
-                    print(
-                        f"[Validator] Invertendo: '{item.get('description', '')[:30]}' {amount} -> {-amount}"
-                    )
 
         return items
 
@@ -539,8 +489,6 @@ class ExtractionValidator:
 
         if not is_bradesco:
             return items
-
-        print("[Validator] Detectado Bradesco, verificando parcelamentos concatenados...")
 
         pattern = re.compile(r"(\d{1,2})/(\d{1,2})$")
 
@@ -577,10 +525,6 @@ class ExtractionValidator:
                     if len(clean_desc.strip()) < 3:
                         clean_desc = description[: match.start()].rstrip("*- ")
 
-                    print(
-                        f"[Validator] Parcelamento extraido: '{description}' -> '{clean_desc.strip()}' ({current}/{total})"
-                    )
-
                     item["description"] = clean_desc.strip() if clean_desc.strip() else description
                     item["is_installment"] = True
                     item["installment_current"] = current
@@ -588,7 +532,9 @@ class ExtractionValidator:
                     fixed_count += 1
 
         if fixed_count > 0:
-            print(f"[Validator] Total de {fixed_count} parcelamentos corrigidos (Bradesco/AMEX)")
+            logger.debug(
+                "[Validator] Total de %s parcelamentos corrigidos (Bradesco/AMEX)", fixed_count
+            )
 
         return items
 
@@ -639,13 +585,6 @@ class ExtractionValidator:
             old_amount = best_match["amount"]
             best_match["amount"] = -old_amount
             best_match["transaction_type"] = "credito"
-
-            new_sum = items_sum - 2 * old_amount
-            print(
-                f"[Validator] Crédito oculto detectado: '{best_match.get('description', '')[:40]}' "
-                f"R${old_amount:.2f} -> R${-old_amount:.2f} "
-                f"(soma: {items_sum:.2f} -> {new_sum:.2f}, total: {total_amount:.2f})"
-            )
 
         return items
 
@@ -766,12 +705,7 @@ class ExtractionValidator:
             and item.get("installment_total") == 1
         ]
 
-        if suspicious:
-            for item in suspicious:
-                print(
-                    f"[Validator] WARNING: Suspicious 1/1 installment: {item.get('description')} R${item.get('amount')}"
-                )
-
+        logger.debug("suspicious_installments item_count=%s", len(suspicious))
         return items
 
     def filter_consecutive_installments(self, items: list) -> list:
@@ -827,9 +761,6 @@ class ExtractionValidator:
 
             if starts_at_1 and is_sequential and same_total and similar_values and len(group) >= 3:
                 first_item = sorted_group[0].copy()
-                print(
-                    f"[Validator] Agrupando {len(group)} parcelas consecutivas de '{desc_norm}' em 1 item (parcela 1/{totais[0]})"
-                )
                 result_items.append(first_item)
             else:
                 result_items.extend(group)
@@ -938,10 +869,6 @@ class ExtractionValidator:
                     has_name_overlap = bool(compra_parts & estorno_parts)
 
                     if is_generic_estorno or has_name_overlap:
-                        print(
-                            f"[Validator] Removendo compra cancelada: {desc_norm} ({len(grupo)} item(s), total R${valor_total_grupo:.2f}) + estorno R${estorno_valor:.2f}"
-                        )
-
                         for idx, _ in grupo:
                             items_to_remove.add(idx)
                         items_to_remove.add(e_idx)
@@ -971,15 +898,14 @@ class ExtractionValidator:
                     estorno_parts = set(estorno_nome.replace("*", " ").split())
 
                     if bool(compra_parts & estorno_parts):
-                        print(
-                            f"[Validator] Removendo compra simples cancelada: {item['description']} R${valor:.2f}"
-                        )
                         items_to_remove.add(i)
                         items_to_remove.add(e_idx)
                         break
 
         if items_to_remove:
-            print(f"[Validator] Total: {len(items_to_remove)} itens removidos por cancelamento")
+            logger.debug(
+                "[Validator] Total: %s itens removidos por cancelamento", len(items_to_remove)
+            )
             return [item for i, item in enumerate(items) if i not in items_to_remove]
 
         return items
@@ -1011,9 +937,6 @@ class ExtractionValidator:
                 removed.append(f"'{item.get('description')}' R${amount:.2f}")
             else:
                 result.append(item)
-
-        if removed:
-            print(f"[Validator] Removidos itens de total/resumo: {', '.join(removed)}")
 
         return result
 
@@ -1115,9 +1038,11 @@ class ExtractionValidator:
                     f"mas ~{estimated_count} transacoes detectadas no texto OCR. "
                     f"Verifique se todos os itens foram capturados."
                 )
-                print(
-                    f"[Validator] WARNING: Extracao possivelmente incompleta "
-                    f"({extracted_count}/{estimated_count} = {ratio:.0%})"
+                logger.debug(
+                    "[Validator] WARNING: Extracao possivelmente incompleta (%s/%s = %s)",
+                    extracted_count,
+                    estimated_count,
+                    format(ratio, ".0%"),
                 )
 
         return result
@@ -1206,14 +1131,12 @@ class ExtractionValidator:
                     is_address = True
 
             if is_address:
-                print(
-                    f"[Validator] Removendo endereço/boleto: '{desc[:60]}...' R${item.get('amount', 0):.2f}"
-                )
+                pass
             else:
                 result.append(item)
 
         if len(result) < len(items):
-            print(f"[Validator] Filtro de endereços: {len(items)} -> {len(result)} itens")
+            logger.debug("[Validator] Filtro de endereços: %s -> %s itens", len(items), len(result))
 
         return result
 
@@ -1273,10 +1196,6 @@ class ExtractionValidator:
 
         if not ocr_transactions:
             return items
-
-        print(
-            f"[Validator] OCR date fix: encontradas {len(ocr_transactions)} transações no texto OCR"
-        )
 
         # Rastrear quais linhas OCR já foram usadas (evitar match duplo)
         used_ocr_indices = set()
@@ -1338,12 +1257,11 @@ class ExtractionValidator:
                 correct_date = f"{year}-{ocr_month:02d}-{ocr_day:02d}"
 
                 if correct_date != item_date:
-                    print(f"[Validator] Date fix: '{item_desc[:30]}' {item_date} -> {correct_date}")
                     item["date"] = correct_date
                     fixed_count += 1
 
         if fixed_count > 0:
-            print(f"[Validator] OCR date fix: {fixed_count} datas corrigidas")
+            logger.debug("[Validator] OCR date fix: %s datas corrigidas", fixed_count)
 
         return items
 
@@ -1422,8 +1340,6 @@ class ExtractionValidator:
         if not ocr_transactions:
             return items
 
-        print(f"[Validator] Nubank date fix: encontradas {len(ocr_transactions)} transações no OCR")
-
         used_ocr_indices = set()
         fixed_count = 0
 
@@ -1479,13 +1395,10 @@ class ExtractionValidator:
                 correct_date = f"{year}-{ocr_month:02d}-{ocr_day:02d}"
 
                 if correct_date != item_date:
-                    print(
-                        f"[Validator] Nubank date fix: '{item_desc[:30]}' {item_date} -> {correct_date}"
-                    )
                     item["date"] = correct_date
                     fixed_count += 1
 
         if fixed_count > 0:
-            print(f"[Validator] Nubank date fix: {fixed_count} datas corrigidas")
+            logger.debug("[Validator] Nubank date fix: %s datas corrigidas", fixed_count)
 
         return items

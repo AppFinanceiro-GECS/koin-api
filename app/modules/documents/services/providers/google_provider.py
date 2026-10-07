@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import logging
 import os
 import tempfile
 
@@ -10,6 +11,9 @@ from app.core.config import settings
 from .base import BaseProvider
 
 # Configuracao de retry
+logger = logging.getLogger(__name__)
+
+
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_DELAY = 2.0
 
@@ -58,7 +62,6 @@ class GoogleProvider(BaseProvider):
         for bank_name, indicators in bank_indicators.items():
             for indicator in indicators:
                 if indicator in text_lower:
-                    print(f"[GoogleProvider] Banco detectado: {bank_name}")
                     return bank_name
 
         return None
@@ -83,9 +86,6 @@ class GoogleProvider(BaseProvider):
             if bank_prompt_path.exists():
                 bank_prompt = bank_prompt_path.read_text(encoding="utf-8")
                 prompt_text = f"{prompt_text}\n\n{bank_prompt}"
-                print(f"[GoogleProvider] Prompt específico do banco '{bank_name}' adicionado")
-            else:
-                print(f"[GoogleProvider] Banco '{bank_name}' sem prompt específico")
 
         return prompt_text
 
@@ -163,7 +163,9 @@ class GoogleProvider(BaseProvider):
         try:
             from google.genai import types
         except ImportError:
-            print("[GoogleProvider] google.genai not available, falling back to image conversion")
+            logger.info(
+                "[GoogleProvider] google.genai not available, falling back to image conversion"
+            )
             return None  # Sinaliza para usar fallback
 
         client = self._get_client()
@@ -185,14 +187,13 @@ class GoogleProvider(BaseProvider):
                 native_banks = ["banco itau", "itaú", "itau unibanco", "financeira itau cbd"]
                 if any(ind in quick_lower for ind in native_banks):
                     use_native = True
-                    print(
-                        "[GoogleProvider] Auto-detected Itaú layout — switching to native PDF mode"
-                    )
             except Exception:
                 pass
 
-        print(
-            f"[GoogleProvider] Using PDF {'native' if use_native else 'text'} mode, model={self.model}"
+        logger.info(
+            "[GoogleProvider] Using PDF %s mode, model=%s",
+            "native" if use_native else "text",
+            self.model,
         )
 
         temp_file = None
@@ -212,8 +213,6 @@ class GoogleProvider(BaseProvider):
 
             # Try native mode: send PDF bytes directly to Gemini
             if use_native and not password:
-                print("[GoogleProvider] Native mode: sending PDF bytes directly to Gemini...")
-
                 # Extract text only for bank detection (lightweight)
                 from ..pdf_text_extractor import PDFTextExtractor
 
@@ -249,26 +248,21 @@ Extraia TODAS as transações do documento PDF anexado."""
                 )
             else:
                 if use_native and password:
-                    print("[GoogleProvider] Password-protected PDF, falling back to text mode...")
+                    logger.info(
+                        "[GoogleProvider] Password-protected PDF, falling back to text mode..."
+                    )
 
                 # PASSO 1: Usar PyMuPDF para extrair texto preservando layout de colunas
-                print("[GoogleProvider] Step 1: Extract text with PyMuPDF (preserves columns)...")
                 from ..pdf_text_extractor import PDFTextExtractor
 
                 pdf_bytes = await asyncio.to_thread(_read_file_sync, temp_file)
                 ocr_text = PDFTextExtractor.extract_text_with_layout(pdf_bytes, password)
-                print(f"[GoogleProvider] Text extracted with layout: {len(ocr_text)} chars")
-
-                # Log das primeiras linhas para debug
-                lines_preview = "\n".join(ocr_text.split("\n")[:30])
-                print(f"[GoogleProvider] Text preview:\n{lines_preview}\n...")
 
                 # PASSO 2: Detectar banco e compor prompt
                 bank_name = self._detect_bank(ocr_text)
                 composed_prompt = self._compose_prompt_with_bank(bank_name)
 
                 # PASSO 3: Fazer extração estruturada usando TEXTO (não imagem)
-                print("[GoogleProvider] Step 2: Structured extraction from TEXT (not image)...")
 
                 # Criar prompt final com o texto do documento
                 final_prompt = f"""{composed_prompt}
@@ -304,8 +298,10 @@ NÃO retorne apenas um array! Retorne um objeto completo."""
             last_error = None
             for attempt in range(self.max_retries):
                 try:
-                    print(
-                        f"[GoogleProvider] Calling Gemini API (attempt {attempt + 1}/{self.max_retries})..."
+                    logger.info(
+                        "[GoogleProvider] Calling Gemini API (attempt %s/%s)...",
+                        attempt + 1,
+                        self.max_retries,
                     )
                     # Executa em thread separada para nao bloquear o event loop
                     response = await asyncio.to_thread(
@@ -313,17 +309,14 @@ NÃO retorne apenas um array! Retorne um objeto completo."""
                     )
 
                     response_text = response.text if response else ""
-                    print(f"[GoogleProvider] Response length: {len(response_text)} chars")
                     return self._parse_response(response_text)
 
                 except Exception as e:
                     last_error = e
-                    print(
-                        f"[GoogleProvider] API error (attempt {attempt + 1}): {type(e).__name__}: {e}"
-                    )
+                    logger.error("extract_from_pdf_failed error_type=%s", type(e).__name__)
                     if self._is_retryable_error(e) and attempt < self.max_retries - 1:
                         wait_time = self.retry_delay * (2**attempt)
-                        print(f"[GoogleProvider] Retrying in {wait_time}s...")
+                        logger.info("[GoogleProvider] Retrying in %ss...", wait_time)
                         await asyncio.sleep(wait_time)
                         continue
                     else:
@@ -340,11 +333,11 @@ NÃO retorne apenas um array! Retorne um objeto completo."""
         try:
             from google.genai import types
         except ImportError:
-            print("[GoogleProvider] google.genai not available, using httpx fallback")
+            logger.info("[GoogleProvider] google.genai not available, using httpx fallback")
             return await self._call_multi_page_httpx(images)
 
         client = self._get_client()
-        print(f"[GoogleProvider] Using Google SDK, model={self.model}")
+        logger.info("[GoogleProvider] Using Google SDK, model=%s", self.model)
 
         parts = [
             self.prompt
@@ -365,8 +358,10 @@ NÃO retorne apenas um array! Retorne um objeto completo."""
         last_error = None
         for attempt in range(self.max_retries):
             try:
-                print(
-                    f"[GoogleProvider] Calling Gemini API (attempt {attempt + 1}/{self.max_retries})..."
+                logger.info(
+                    "[GoogleProvider] Calling Gemini API (attempt %s/%s)...",
+                    attempt + 1,
+                    self.max_retries,
                 )
                 # Executa em thread separada para nao bloquear o event loop
                 response = await asyncio.to_thread(
@@ -374,17 +369,14 @@ NÃO retorne apenas um array! Retorne um objeto completo."""
                 )
 
                 response_text = response.text if response else ""
-                print(f"[GoogleProvider] Response length: {len(response_text)} chars")
                 return self._parse_response(response_text)
 
             except Exception as e:
                 last_error = e
-                print(
-                    f"[GoogleProvider] API error (attempt {attempt + 1}): {type(e).__name__}: {e}"
-                )
+                logger.error("extract_multi_page_failed error_type=%s", type(e).__name__)
                 if self._is_retryable_error(e) and attempt < self.max_retries - 1:
                     wait_time = self.retry_delay * (2**attempt)
-                    print(f"[GoogleProvider] Retrying in {wait_time}s...")
+                    logger.info("[GoogleProvider] Retrying in %ss...", wait_time)
                     await asyncio.sleep(wait_time)
                     continue
                 else:
