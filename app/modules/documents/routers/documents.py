@@ -14,11 +14,12 @@ async def upload_document(
     file: UploadFile = File(...),
     password: str | None = Form(None),
     credit_card_id: int | None = Form(None),
+    force: bool = Query(False),
 ):
     """
     Upload de documento (foto/PDF) para processamento SINCRONO.
     Retorna dados extraidos para confirmacao (nao salva automaticamente).
-    Inclui alerta is_duplicate se documento ja foi enviado antes.
+    Reenvio do mesmo arquivo retorna 409 com o id do documento original.
 
     NOTA: Para melhor UX, use POST /documents/async que retorna imediatamente.
 
@@ -26,6 +27,7 @@ async def upload_document(
         file: PDF or image file
         password: Optional password for protected PDFs
         credit_card_id: Optional credit card ID to use saved password automatically
+        force: Reprocessa o documento ja enviado em vez de retornar 409
     """
     # Debug: log password info (not the password itself!)
     if password:
@@ -36,7 +38,7 @@ async def upload_document(
     service = DocumentService(db)
     try:
         # Service agora retorna DocumentResponse diretamente
-        return await service.upload(current_user, file, password, credit_card_id)
+        return await service.upload(current_user, file, password, credit_card_id, force)
     except PasswordRequiredError:
         raise HTTPException(
             status_code=422,
@@ -52,21 +54,24 @@ async def upload_document_async(
     file: UploadFile = File(...),
     password: str | None = Form(None),
     credit_card_id: int | None = Form(None),
+    force: bool = Query(False),
 ):
     """
     Upload de documento (foto/PDF) para processamento ASSINCRONO.
     Retorna imediatamente com status "processing".
     Use GET /documents/{id} para verificar status e obter dados extraidos.
+    Reenvio do mesmo arquivo retorna 409 com o id do documento original.
 
     Args:
         file: PDF or image file
         password: Optional password for protected PDFs
         credit_card_id: Optional credit card ID to use saved password automatically
+        force: Reprocessa o documento ja enviado em vez de retornar 409
     """
     service = DocumentService(db)
     try:
         return await service.upload_async(
-            current_user, file, background_tasks, password, credit_card_id
+            current_user, file, background_tasks, password, credit_card_id, force
         )
     except PasswordRequiredError:
         raise HTTPException(
@@ -80,14 +85,16 @@ async def upload_documents_batch(
     current_user: CurrentUser,
     db: DbSession,
     files: list[UploadFile] = File(...),
+    force: bool = Query(False),
 ):
     """
     Upload de multiplas imagens como 1 documento (para cupons grandes).
     Permite enviar ate 10 imagens que serao processadas como um unico documento.
     Util para cupons fiscais ou faturas que nao cabem em uma unica foto.
+    Reenvio das mesmas imagens retorna 409 com o id do documento original.
     """
     service = DocumentService(db)
-    return await service.upload_batch(current_user, files)
+    return await service.upload_batch(current_user, files, force)
 
 
 @router.get("", response_model=list[DocumentResponse])
