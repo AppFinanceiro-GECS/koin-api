@@ -13,6 +13,8 @@ from app.models.credit_card import CreditCard
 from app.models.document import Document, DocumentStatus, DocumentType
 from app.models.user import User
 
+pytest_plugins = ["tests.live_support"]
+
 # Use in-memory SQLite for tests
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 

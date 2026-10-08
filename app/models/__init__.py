@@ -1,6 +1,7 @@
 from app.modules.known_services.models.known_service import KnownRecurringService
 
 from .account import Account
+from .ai_usage import AIDailyBudget, AIUsage, LicenseDocumentUsage
 from .api_key import APIKey, APIKeyStatus
 
 # Envelope module removed - functionality merged into Budgets module

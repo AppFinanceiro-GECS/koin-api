@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, timedelta
 
 from fastapi import HTTPException, status
@@ -23,6 +24,8 @@ from app.modules.transactions.schemas.transaction import (
     TransactionCreate,
     TransactionUpdate,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class TransactionService:
@@ -745,15 +748,6 @@ class TransactionService:
                 result["invoice"] = invoice
 
         # Se e uma transacao parcelada
-        # DEBUG: Log dos valores recebidos
-        print(
-            f"[TX_SVC DEBUG] confirm_from_document: description='{data.description}', "
-            f"merchant_name='{data.merchant_name}', amount={data.amount}, "
-            f"is_installment={data.is_installment}, "
-            f"installment_current={data.installment_current}, "
-            f"installment_total={data.installment_total}, "
-            f"credit_card_id={credit_card_id}"
-        )
 
         if data.is_installment and data.installment_current and data.installment_total:
             installment_service = InstallmentService(self.db)
@@ -870,10 +864,6 @@ class TransactionService:
 
                 if fuzzy_series:
                     # Encontrou série existente via fuzzy match!
-                    print(
-                        f"[TX_SVC] Fuzzy match encontrou serie existente: id={fuzzy_series.id}, "
-                        f"merchant='{fuzzy_series.merchant_name}'"
-                    )
 
                     result["series"] = fuzzy_series
 
@@ -884,9 +874,6 @@ class TransactionService:
 
                     if existing_installment and not existing_installment.is_paid:
                         # CONFIRMAR parcela projetada existente (não criar nova)
-                        print(
-                            f"[TX_SVC] Confirmando parcela projetada: {data.installment_current}/{data.installment_total}"
-                        )
 
                         transaction = await installment_service.confirm_existing_installment(
                             user=user,
@@ -949,7 +936,7 @@ class TransactionService:
 
                 else:
                     # Não encontrou série existente - criar nova (fluxo original)
-                    print("[TX_SVC] Nenhuma serie encontrada via fuzzy match, criando nova")
+                    logger.info("[TX_SVC] Nenhuma serie encontrada via fuzzy match, criando nova")
 
                     # Determinar payment_method
                     payment_method = self._infer_payment_method(data, credit_card_id)
@@ -982,18 +969,6 @@ class TransactionService:
                     first_installment_date = data.date - relativedelta(
                         months=data.installment_current - 1
                     )
-
-                    print("[TX_SVC] Criando serie de parcelas (NOVO FLUXO):")
-                    print(
-                        f"[TX_SVC]   data.date={data.date}, installment={data.installment_current}/{data.installment_total}"
-                    )
-                    print(f"[TX_SVC]   first_installment_date calculado={first_installment_date}")
-                    print(f"[TX_SVC]   first_transaction_id={transaction.id}")
-                    print(f"[TX_SVC]   invoice_month/year={data.invoice_month}/{data.invoice_year}")
-                    if credit_card:
-                        print(
-                            f"[TX_SVC]   credit_card closing_day={credit_card.closing_day}, due_day={credit_card.due_day}"
-                        )
 
                     series = await installment_service.create_series(
                         user=user,

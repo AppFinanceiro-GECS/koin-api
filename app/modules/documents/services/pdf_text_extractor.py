@@ -1,6 +1,10 @@
 """Extrator de texto estruturado de PDFs preservando layout de colunas"""
 
+import logging
+
 import fitz  # PyMuPDF
+
+logger = logging.getLogger(__name__)
 
 
 class PDFTextExtractor:
@@ -48,7 +52,7 @@ class PDFTextExtractor:
             return "\n\n".join(all_text)
 
         except Exception as e:
-            print(f"[PDFTextExtractor] Erro ao extrair texto: {e}")
+            logger.error("extract_text_with_layout_failed error_type=%s", type(e).__name__)
             return ""
 
     @staticmethod
@@ -99,5 +103,7 @@ class PDFTextExtractor:
             return all_blocks
 
         except Exception as e:
-            print(f"[PDFTextExtractor] Erro ao extrair blocos: {e}")
+            logger.error(
+                "extract_text_blocks_with_positions_failed error_type=%s", type(e).__name__
+            )
             return []

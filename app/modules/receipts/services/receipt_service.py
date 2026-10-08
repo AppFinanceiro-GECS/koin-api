@@ -223,7 +223,6 @@ class ReceiptService:
                     BalanceMonitor.log_negative_balance_event(
                         account, payment_data.amount, f"receipt_payment #{payment.id}", user.id
                     )
-                    print(check_result["alert_message"])
 
                 # Realizar débito (PERMITE saldo negativo - cartão físico tem saldo real)
                 account.balance = float(account.balance) - float(payment_data.amount)

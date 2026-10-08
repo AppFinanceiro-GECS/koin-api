@@ -3,6 +3,7 @@ Smart List Service - LLM-powered intelligent shopping list generation
 """
 
 import json
+import logging
 from collections import defaultdict
 from datetime import date, timedelta
 
@@ -10,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.ai_usage import AIUnavailable, metered, tracked_call
 from app.core.config import settings
 from app.models.grocery import (
     GroceryCategory,
@@ -30,6 +32,8 @@ from app.modules.grocery.schemas.smart_list import (
     SmartListItemResponse,
 )
 from app.modules.household.utils import get_household_user_ids
+
+logger = logging.getLogger(__name__)
 
 
 class SmartListService:
@@ -68,24 +72,23 @@ class SmartListService:
                 raise ImportError("mistralai nao instalado. Execute: pip install mistralai")
         return self._mistral_client
 
+    @metered("smart_list")
     async def generate_smart_list(
         self, user: User, request: SmartListGenerateRequest
     ) -> SmartListFullResponse:
         """Generate a smart shopping list using LLM analysis"""
-        print("[SmartListService] === INICIANDO GERACAO DE LISTA INTELIGENTE ===")
-        print(f"[SmartListService] User ID: {user.id}, License ID: {user.license_id}")
-        print(
-            f"[SmartListService] Request: period_days={request.period_days}, include_non_essential={request.include_non_essential}"
-        )
+        logger.info("[SmartListService] === INICIANDO GERACAO DE LISTA INTELIGENTE ===")
 
         # 1. Fetch purchase history
         purchases = await self._fetch_purchases(user, request)
 
-        print(f"[SmartListService] Compras encontradas: {len(purchases)}")
+        logger.info("[SmartListService] Compras encontradas: %s", len(purchases))
 
         if not purchases:
             # Return empty list if no purchases found
-            print("[SmartListService] MOTIVO DA LISTA VAZIA: Nenhuma compra encontrada no periodo")
+            logger.info(
+                "[SmartListService] MOTIVO DA LISTA VAZIA: Nenhuma compra encontrada no periodo"
+            )
             return await self._create_empty_list(user, request)
 
         # 2. Prepare data for LLM
@@ -96,14 +99,14 @@ class SmartListService:
 
         # 4. Enrich LLM response with original product details
         llm_items = llm_response.get("shopping_list", [])
-        print(f"[SmartListService] Itens do LLM para enriquecer: {len(llm_items)}")
+        logger.info("[SmartListService] Itens do LLM para enriquecer: %s", len(llm_items))
 
         enriched_items = self._enrich_with_original_products(llm_items, purchases)
-        print(f"[SmartListService] Itens enriquecidos: {len(enriched_items)}")
+        logger.info("[SmartListService] Itens enriquecidos: %s", len(enriched_items))
 
         # 5. Create shopping list in database
         shopping_list = await self._create_shopping_list(user, request, enriched_items)
-        print(f"[SmartListService] Lista criada no banco: ID={shopping_list.id}")
+        logger.info("[SmartListService] Lista criada no banco: ID=%s", shopping_list.id)
 
         # 6. Build full response
         response = self._build_response(
@@ -114,9 +117,8 @@ class SmartListService:
             user,
         )
 
-        print("[SmartListService] === GERACAO CONCLUIDA ===")
-        print(f"[SmartListService] Total de itens na lista: {response.total_items}")
-        print(f"[SmartListService] Total estimado: R$ {response.estimated_total}")
+        logger.info("[SmartListService] === GERACAO CONCLUIDA ===")
+        logger.info("[SmartListService] Total de itens na lista: %s", response.total_items)
 
         return response
 
@@ -127,9 +129,6 @@ class SmartListService:
         household_user_ids = await get_household_user_ids(self.db, user)
         start_date = date.today() - timedelta(days=request.period_days)
 
-        print(f"[SmartListService] _fetch_purchases: start_date={start_date}, today={date.today()}")
-        print(f"[SmartListService] _fetch_purchases: household_user_ids={household_user_ids}")
-
         query = (
             select(GroceryPurchase)
             .where(GroceryPurchase.purchase_date >= start_date)
@@ -138,16 +137,11 @@ class SmartListService:
 
         if household_user_ids:
             query = query.where(GroceryPurchase.user_id.in_(household_user_ids))
-            print("[SmartListService] _fetch_purchases: Filtrando por household_user_ids")
         else:
             query = query.where(GroceryPurchase.user_id == user.id)
-            print(f"[SmartListService] _fetch_purchases: Filtrando por user_id={user.id}")
 
         if not request.include_non_essential:
             query = query.where(GroceryPurchase.necessity_type == NecessityType.ESSENTIAL.value)
-            print("[SmartListService] _fetch_purchases: Filtrando apenas ESSENTIAL")
-        else:
-            print("[SmartListService] _fetch_purchases: Incluindo todos os tipos de necessidade")
 
         # Limit to avoid token overflow (max 100 items - reduced for faster response)
         query = query.order_by(GroceryPurchase.purchase_date.desc()).limit(100)
@@ -156,12 +150,7 @@ class SmartListService:
         purchases = list(result.scalars().all())
 
         if purchases:
-            print(
-                f"[SmartListService] _fetch_purchases: Primeira compra: {purchases[0].product_name} em {purchases[0].purchase_date}"
-            )
-            print(
-                f"[SmartListService] _fetch_purchases: Ultima compra: {purchases[-1].product_name} em {purchases[-1].purchase_date}"
-            )
+            logger.debug("purchases_loaded item_count=%s", len(purchases))
         else:
             # Debug: verificar se existem compras sem filtro de data
             from sqlalchemy import func
@@ -171,10 +160,7 @@ class SmartListService:
             )
             total_result = await self.db.execute(count_query)
             total_count = total_result.scalar()
-            print("[SmartListService] _fetch_purchases: NENHUMA compra no periodo!")
-            print(
-                f"[SmartListService] _fetch_purchases: Total de compras do usuario (sem filtro de data): {total_count}"
-            )
+            logger.debug("purchases_total item_count=%s", total_count)
 
         return purchases
 
@@ -207,15 +193,14 @@ class SmartListService:
             purchases_json=purchases_json,
         )
 
-        print(f"[SmartListService] Chamando LLM com {len(purchases_json)} chars de dados...")
-        print(f"[SmartListService] Prompt total: {len(prompt)} chars")
-
         # 1. Tentar Mistral primeiro (mais barato e confiavel)
         if settings.mistral_api_key:
             result = await self._call_mistral(prompt)
             if result and result.get("shopping_list"):
                 return result
-            print("[SmartListService] Mistral falhou ou retornou lista vazia, tentando Gemini...")
+            logger.info(
+                "[SmartListService] Mistral falhou ou retornou lista vazia, tentando Gemini..."
+            )
 
         # 2. Fallback para Gemini
         if settings.google_api_key:
@@ -224,7 +209,7 @@ class SmartListService:
                 return result
 
         # 3. Todos os providers falharam
-        print("[SmartListService] Todos os providers falharam!")
+        logger.info("[SmartListService] Todos os providers falharam!")
         return self._fallback_response()
 
     def _mistral_chat_sync(self, client, model: str, prompt: str):
@@ -243,47 +228,53 @@ class SmartListService:
 
         try:
             client = self._get_mistral_client()
+        except AIUnavailable:
+            raise
         except Exception as e:
-            print(f"[SmartListService] ERRO ao criar cliente Mistral: {type(e).__name__}: {e}")
+            logger.error("_call_mistral_failed error_type=%s", type(e).__name__)
             return None
 
         model = settings.mistral_llm_model or "mistral-small-latest"
-        last_error = None
 
         for attempt in range(3):
             try:
-                print(f"[SmartListService] Tentativa {attempt + 1}/3 com Mistral ({model})")
+                logger.info(
+                    "[SmartListService] Tentativa %s/3 com Mistral (%s)", attempt + 1, model
+                )
 
                 # Executa em thread separada para nao bloquear o event loop
-                response = await asyncio.to_thread(self._mistral_chat_sync, client, model, prompt)
+                response = await tracked_call(
+                    "mistral",
+                    model,
+                    lambda: asyncio.to_thread(self._mistral_chat_sync, client, model, prompt),
+                )
 
                 response_text = response.choices[0].message.content if response.choices else ""
-                print(f"[SmartListService] Mistral respondeu: {len(response_text)} chars")
 
                 if not response_text:
-                    print("[SmartListService] ERRO: Resposta vazia do Mistral!")
+                    logger.info("[SmartListService] ERRO: Resposta vazia do Mistral!")
                     continue
 
                 return self._parse_llm_response(response_text)
 
+            except AIUnavailable:
+                raise
+
             except Exception as e:
-                last_error = e
                 error_str = str(e).lower()
-                print(
-                    f"[SmartListService] ERRO Mistral tentativa {attempt + 1}: {type(e).__name__}: {e}"
-                )
+                logger.error("_call_mistral_failed error_type=%s", type(e).__name__)
 
                 # Se for erro de rate limit ou overloaded, esperar e tentar novamente
                 if "429" in str(e) or "rate" in error_str or "overload" in error_str:
                     wait_time = (attempt + 1) * 2  # 2s, 4s, 6s
-                    print(f"[SmartListService] Mistral rate limited, aguardando {wait_time}s...")
+                    logger.info(
+                        "[SmartListService] Mistral rate limited, aguardando %ss...", wait_time
+                    )
                     await asyncio.sleep(wait_time)
                 else:
                     # Erro diferente, parar tentativas
                     break
 
-        if last_error:
-            print(f"[SmartListService] Mistral falhou apos 3 tentativas: {last_error}")
         return None
 
     def _gemini_generate_sync(self, client, model: str, prompt: str, config):
@@ -301,17 +292,18 @@ class SmartListService:
         try:
             from google.genai import types
         except ImportError:
-            print("[SmartListService] ERRO: google.genai not available")
+            logger.info("[SmartListService] ERRO: google.genai not available")
             return None
 
         try:
             client = self._get_gemini_client()
+        except AIUnavailable:
+            raise
         except Exception as e:
-            print(f"[SmartListService] ERRO ao criar cliente Gemini: {type(e).__name__}: {e}")
+            logger.error("_call_gemini_failed error_type=%s", type(e).__name__)
             return None
 
         models_to_try = [settings.vision_model]
-        last_error = None
 
         config = types.GenerateContentConfig(
             temperature=0.2,
@@ -323,33 +315,39 @@ class SmartListService:
         for model in models_to_try:
             for attempt in range(3):
                 try:
-                    print(f"[SmartListService] Tentativa {attempt + 1}/3 com Gemini ({model})")
+                    logger.info(
+                        "[SmartListService] Tentativa %s/3 com Gemini (%s)", attempt + 1, model
+                    )
 
                     # Executa em thread separada para nao bloquear o event loop
-                    response = await asyncio.to_thread(
-                        self._gemini_generate_sync, client, model, prompt, config
+                    response = await tracked_call(
+                        "google",
+                        model,
+                        lambda: asyncio.to_thread(
+                            self._gemini_generate_sync, client, model, prompt, config
+                        ),
                     )
 
                     response_text = response.text if response else ""
-                    print(f"[SmartListService] Gemini respondeu: {len(response_text)} chars")
 
                     if not response_text:
-                        print("[SmartListService] ERRO: Resposta vazia do Gemini!")
+                        logger.info("[SmartListService] ERRO: Resposta vazia do Gemini!")
                         if response and hasattr(response, "candidates") and response.candidates:
                             if response.candidates[0].finish_reason:
-                                print(
-                                    f"[SmartListService] Finish reason: {response.candidates[0].finish_reason}"
+                                logger.info(
+                                    "[SmartListService] Finish reason: %s",
+                                    response.candidates[0].finish_reason,
                                 )
                         continue
 
                     return self._parse_llm_response(response_text)
 
+                except AIUnavailable:
+                    raise
+
                 except Exception as e:
-                    last_error = e
                     error_str = str(e).lower()
-                    print(
-                        f"[SmartListService] ERRO Gemini tentativa {attempt + 1}: {type(e).__name__}: {e}"
-                    )
+                    logger.error("_call_gemini_failed error_type=%s", type(e).__name__)
 
                     if (
                         "503" in str(e)
@@ -358,36 +356,30 @@ class SmartListService:
                         or "rate" in error_str
                     ):
                         wait_time = (attempt + 1) * 2
-                        print(
-                            f"[SmartListService] Gemini sobrecarregado, aguardando {wait_time}s..."
+                        logger.info(
+                            "[SmartListService] Gemini sobrecarregado, aguardando %ss...", wait_time
                         )
                         await asyncio.sleep(wait_time)
                     else:
                         break
 
-            print(f"[SmartListService] Modelo {model} falhou, tentando proximo...")
+            logger.info("[SmartListService] Modelo %s falhou, tentando proximo...", model)
 
-        if last_error:
-            import traceback
-
-            print(f"[SmartListService] Gemini falhou: {type(last_error).__name__}: {last_error}")
-            print(f"[SmartListService] Traceback: {traceback.format_exc()}")
         return None
 
     def _parse_llm_response(self, response_text: str) -> dict:
         """Parse and validate LLM JSON response"""
         if not response_text:
-            print("[SmartListService] _parse_llm_response: Texto vazio, retornando fallback")
+            logger.info("[SmartListService] _parse_llm_response: Texto vazio, retornando fallback")
             return self._fallback_response()
 
         try:
             data = json.loads(response_text)
-            print("[SmartListService] _parse_llm_response: JSON parseado com sucesso")
 
             # Validate required fields
             if "shopping_list" not in data:
                 data["shopping_list"] = []
-                print(
+                logger.info(
                     "[SmartListService] _parse_llm_response: Campo 'shopping_list' ausente, usando lista vazia"
                 )
             if "excluded" not in data:
@@ -395,37 +387,40 @@ class SmartListService:
             if "insights" not in data:
                 data["insights"] = []
 
-            print(
-                f"[SmartListService] _parse_llm_response: shopping_list={len(data['shopping_list'])} itens"
+            logger.info(
+                "[SmartListService] _parse_llm_response: shopping_list=%s itens",
+                len(data["shopping_list"]),
             )
-            print(f"[SmartListService] _parse_llm_response: excluded={len(data['excluded'])} itens")
-            print(f"[SmartListService] _parse_llm_response: insights={len(data['insights'])} itens")
+            logger.info(
+                "[SmartListService] _parse_llm_response: excluded=%s itens", len(data["excluded"])
+            )
+            logger.info(
+                "[SmartListService] _parse_llm_response: insights=%s itens", len(data["insights"])
+            )
 
             if data["shopping_list"]:
-                print(
-                    f"[SmartListService] _parse_llm_response: Primeiro item: {data['shopping_list'][0].get('product_type', 'N/A')}"
-                )
+                pass
             else:
-                print("[SmartListService] _parse_llm_response: LISTA VAZIA retornada pelo LLM!")
-                print(
-                    f"[SmartListService] _parse_llm_response: Resposta completa (primeiros 500 chars): {response_text[:500]}"
+                logger.info(
+                    "[SmartListService] _parse_llm_response: LISTA VAZIA retornada pelo LLM!"
                 )
 
             return data
 
         except json.JSONDecodeError as e:
-            print(f"[SmartListService] _parse_llm_response: ERRO de parse JSON: {e}")
-            print("[SmartListService] _parse_llm_response: Tentando reparar JSON truncado...")
+            logger.error("_parse_llm_response_failed error_type=%s", type(e).__name__)
+            logger.info("[SmartListService] _parse_llm_response: Tentando reparar JSON truncado...")
 
             # Tentar reparar JSON truncado - extrair itens válidos da shopping_list
             repaired_data = self._try_repair_truncated_json(response_text)
             if repaired_data and repaired_data.get("shopping_list"):
-                print(
-                    f"[SmartListService] _parse_llm_response: JSON reparado com {len(repaired_data['shopping_list'])} itens"
+                logger.info(
+                    "[SmartListService] _parse_llm_response: JSON reparado com %s itens",
+                    len(repaired_data["shopping_list"]),
                 )
                 return repaired_data
 
-            print("[SmartListService] _parse_llm_response: Nao foi possivel reparar o JSON")
+            logger.info("[SmartListService] _parse_llm_response: Nao foi possivel reparar o JSON")
             return self._fallback_response()
 
     def _try_repair_truncated_json(self, response_text: str) -> dict | None:
@@ -474,13 +469,16 @@ class SmartListService:
 
             return None
 
+        except AIUnavailable:
+            raise
+
         except Exception as e:
-            print(f"[SmartListService] _try_repair_truncated_json: Erro: {e}")
+            logger.error("_try_repair_truncated_json_failed error_type=%s", type(e).__name__)
             return None
 
     def _fallback_response(self) -> dict:
         """Return empty response when LLM fails"""
-        print(
+        logger.info(
             "[SmartListService] _fallback_response: Retornando resposta de fallback (lista vazia)"
         )
         return {

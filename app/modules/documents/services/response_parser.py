@@ -1,10 +1,13 @@
 """Parser de respostas JSON das LLMs"""
 
 import json
+import logging
 import re
 from datetime import datetime
 
 from .extraction_validator import ExtractionValidator
+
+logger = logging.getLogger(__name__)
 
 
 class ResponseParser:
@@ -234,7 +237,6 @@ class ResponseParser:
             ]:
                 value = card_info.get(field)
                 if value and any(ph in str(value) for ph in self.PLACEHOLDER_VALUES):
-                    print(f"[Parser] AVISO: Detectado placeholder em card_info.{field}: {value}")
                     return True
 
         # Verificar items
@@ -242,7 +244,6 @@ class ResponseParser:
         for item in items:
             desc = item.get("description", "")
             if any(ph in str(desc) for ph in self.PLACEHOLDER_VALUES):
-                print(f"[Parser] AVISO: Detectado placeholder em item.description: {desc}")
                 return True
             # Data placeholder é aceita - será tratada como None no _normalize_item
 
@@ -261,7 +262,7 @@ class ResponseParser:
 
             # Se o LLM retornou um array ao invés de objeto, converter
             if isinstance(data, list):
-                print("[Parser] LLM retornou array ao invés de objeto, convertendo...")
+                logger.info("[Parser] LLM retornou array ao invés de objeto, convertendo...")
                 # Assumir que é uma lista de transações
                 data = {"document_type": "fatura_cartao", "items": data, "card_info": None}
 
@@ -278,12 +279,6 @@ class ResponseParser:
                 if normalized and normalized["amount"] != 0:
                     items.append(normalized)
 
-            # DEBUG: Log para verificar o que veio do LLM
-            import json as json_debug
-
-            print("[Parser] DEBUG: FULL JSON from LLM:")
-            print(json_debug.dumps(data, indent=2, ensure_ascii=False, default=str)[:2000])
-
             # Extrair total_amount de varios lugares possiveis
             total_amount = data.get("total_amount")
             if not total_amount and "payment_info" in data:
@@ -294,7 +289,6 @@ class ResponseParser:
                         or payment_info.get("total")
                         or payment_info.get("valor_total")
                     )
-                    print(f"[Parser] DEBUG: total_amount from payment_info={total_amount}")
 
             result = {
                 "items": items,
@@ -405,13 +399,10 @@ class ResponseParser:
         # Limpa data se for placeholder (YYYY-MM-DD ou similar)
         item_date = item.get("date")
         if item_date and "YYYY" in str(item_date):
-            print(f"[Parser] Data placeholder detectada '{item_date}', usando None")
             item_date = None
         elif item_date:
             # Normalizar data para formato ISO (YYYY-MM-DD)
             item_date = self._parse_date(item_date)
-            if not item_date:
-                print(f"[Parser] AVISO: Data inválida '{item.get('date')}', usando None")
 
         normalized = {
             "description": description,
@@ -513,7 +504,6 @@ class ResponseParser:
                 except ValueError:
                     pass
 
-        print(f"[Parser] AVISO: Não foi possível parsear data '{value}'")
         return None
 
     def _auto_categorize(self, description: str) -> str | None:
@@ -578,13 +568,9 @@ class ResponseParser:
                             # Dia inválido para o mês (ex: 31 em fev) - usar dia 1
                             corrected_date = date(invoice_year, invoice_month, 1)
 
-                        print(
-                            f"[Parser] Corrigindo data de parcela: {item['date']} -> {corrected_date.strftime('%Y-%m-%d')} "
-                            f"({item.get('description', 'N/A')[:50]})"
-                        )
                         item["date"] = corrected_date.strftime("%Y-%m-%d")
                 except (ValueError, TypeError) as e:
-                    print(f"[Parser] Erro ao corrigir data de parcela: {e}")
+                    logger.error("_fix_installment_dates_failed error_type=%s", type(e).__name__)
 
             fixed_items.append(item)
 
@@ -643,7 +629,7 @@ class ResponseParser:
                 due = datetime.strptime(result["due_date"], "%Y-%m-%d")
                 result["due_day"] = due.day
             except ValueError as e:
-                print(f"[Parser] Erro ao extrair due_day: {e}")
+                logger.error("_normalize_card_info_failed error_type=%s", type(e).__name__)
 
         return {k: v for k, v in result.items() if v is not None}
 
@@ -678,9 +664,6 @@ class ResponseParser:
         # Se contem sufixo de empresa, e nome do titular, nao do cartao
         has_company_suffix = any(suffix in card_name_upper for suffix in company_suffixes)
         if has_company_suffix:
-            print(
-                f"[Parser] card_name '{card_name}' parece ser nome de empresa/titular, gerando nome do cartao..."
-            )
             return self._generate_card_name(card_info)
 
         # Palavras que indicam que e um nome de cartao valido
@@ -726,9 +709,6 @@ class ResponseParser:
             all_alpha = all(word.replace(" ", "").isalpha() for word in words)
             if all_alpha:
                 # Parece ser nome de pessoa - gerar nome do cartao a partir de outros campos
-                print(
-                    f"[Parser] card_name '{card_name}' parece ser nome de pessoa, gerando nome do cartao..."
-                )
                 return self._generate_card_name(card_info)
 
         return card_name
@@ -893,7 +873,6 @@ class ResponseParser:
                     }
                 )
 
-        print(f"[Parser] DEBUG: payment_info normalized: {result}")
         return result
 
     def _map_payment_method(self, label: str) -> str:
@@ -916,5 +895,4 @@ class ResponseParser:
                 return value
 
         # Default para débito se não reconhecido
-        print(f"[Parser] AVISO: Método de pagamento não reconhecido: '{label}', usando debit_card")
         return "debit_card"

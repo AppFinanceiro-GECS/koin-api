@@ -11,7 +11,12 @@ Design:
 """
 
 import asyncio
+import logging
 from enum import Enum
+
+from app.core.ai_usage import AIUnavailable, tracked_call
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentType(Enum):
@@ -122,25 +127,21 @@ class DocumentClassifier:
 
         if rule_based != DocumentType.UNKNOWN:
             self._stats["by_rules"] += 1
-            print(f"[Classifier] Classificado por regras: {rule_based.value}")
-            print(f"[Classifier] Stats: {self._stats}")
+            logger.info("[Classifier] Classificado por regras: %s", rule_based.value)
             return rule_based
 
         # Nivel 2: LLM fallback (quando regras nao decidem)
         if self.use_llm_fallback:
-            print("[Classifier] Regras inconclusivas, usando LLM...")
             llm_result = await self._classify_by_llm(text_sample)
             if llm_result != DocumentType.UNKNOWN:
                 self._stats["by_llm"] += 1
             else:
                 self._stats["unknown"] += 1
-            print(f"[Classifier] Classificado por LLM: {llm_result.value}")
-            print(f"[Classifier] Stats: {self._stats}")
+            logger.info("[Classifier] Classificado por LLM: %s", llm_result.value)
             return llm_result
 
         self._stats["unknown"] += 1
-        print("[Classifier] Nao foi possivel classificar (UNKNOWN)")
-        print(f"[Classifier] Stats: {self._stats}")
+        logger.info("[Classifier] Nao foi possivel classificar (UNKNOWN)")
         return DocumentType.UNKNOWN
 
     def _classify_by_rules(self, text: str) -> DocumentType:
@@ -169,7 +170,6 @@ class DocumentClassifier:
                 "nota fiscal consumidor eletron",
             ]
         ):
-            print("[Classifier] Decisor forte: NFC-e detectado")
             return DocumentType.CUPOM_FISCAL
 
         # Chave de acesso (44 digitos) = 99% cupom
@@ -179,7 +179,6 @@ class DocumentClassifier:
 
             digit_sequences = re.findall(r"\d+", text)
             if any(len(seq) >= 40 for seq in digit_sequences):
-                print("[Classifier] Decisor forte: Chave de acesso detectada")
                 return DocumentType.CUPOM_FISCAL
 
         # Fatura - indicadores exclusivos
@@ -192,7 +191,6 @@ class DocumentClassifier:
                 "cartao final",
             ]
         ):
-            print("[Classifier] Decisor forte: Limite de credito detectado")
             return DocumentType.FATURA_CARTAO
 
         # ===== SISTEMA DE SCORE PONDERADO =====
@@ -261,21 +259,14 @@ class DocumentClassifier:
         for indicator, weight in cupom_indicators:
             if indicator in text_lower:
                 cupom_score += weight
-                print(f"[Classifier] Cupom: '{indicator}' (+{weight}) = {cupom_score}")
 
         for indicator, weight in fatura_indicators:
             if indicator in text_lower:
                 fatura_score += weight
-                print(f"[Classifier] Fatura: '{indicator}' (+{weight}) = {fatura_score}")
 
         for indicator, weight in extrato_indicators:
             if indicator in text_lower:
                 extrato_score += weight
-                print(f"[Classifier] Extrato: '{indicator}' (+{weight}) = {extrato_score}")
-
-        print(
-            f"[Classifier] Score final: cupom={cupom_score}, fatura={fatura_score}, extrato={extrato_score}"
-        )
 
         # ===== DECISAO COM MARGEM DE CONFIANCA =====
 
@@ -284,7 +275,6 @@ class DocumentClassifier:
         max_score = max(cupom_score, fatura_score, extrato_score)
 
         if max_score == 0:
-            print("[Classifier] Nenhum indicador encontrado")
             return DocumentType.UNKNOWN
 
         # Verificar se tem margem suficiente
@@ -311,10 +301,6 @@ class DocumentClassifier:
 
         # ===== ZONA CINZENTA: heuristica adicional =====
 
-        print(
-            f"[Classifier] Zona cinzenta (diferenca < {MARGEM_CONFIANCA}), aplicando heuristica..."
-        )
-
         # Heuristica 1: Se tem lista de produtos com quantidade, e cupom
         has_product_list = any(
             phrase in text_lower
@@ -327,7 +313,6 @@ class DocumentClassifier:
         )
 
         if has_product_list:
-            print("[Classifier] Heuristica: Lista de produtos detectada -> CUPOM")
             return DocumentType.CUPOM_FISCAL
 
         # Heuristica 2: Se tem parcelamento, e fatura
@@ -344,22 +329,17 @@ class DocumentClassifier:
         )
 
         if has_installments and fatura_score > 0:
-            print("[Classifier] Heuristica: Parcelamento detectado -> FATURA")
             return DocumentType.FATURA_CARTAO
 
         # Heuristica 3: Se empate, escolher o maior score
         if max_score > 0:
             if cupom_score == max_score:
-                print("[Classifier] Heuristica: Maior score -> CUPOM")
                 return DocumentType.CUPOM_FISCAL
             elif fatura_score == max_score:
-                print("[Classifier] Heuristica: Maior score -> FATURA")
                 return DocumentType.FATURA_CARTAO
             else:
-                print("[Classifier] Heuristica: Maior score -> EXTRATO")
                 return DocumentType.EXTRATO_BANCARIO
 
-        print("[Classifier] Heuristicas inconclusivas")
         return DocumentType.UNKNOWN
 
     async def _classify_by_llm(self, text_sample: str) -> DocumentType:
@@ -377,7 +357,7 @@ class DocumentClassifier:
             from app.core.config import settings
 
             if not settings.google_api_key:
-                print("[Classifier] GOOGLE_API_KEY nao configurada, pulando LLM")
+                logger.info("[Classifier] GOOGLE_API_KEY nao configurada, pulando LLM")
                 return DocumentType.UNKNOWN
 
             client = genai.Client(api_key=settings.google_api_key)
@@ -395,10 +375,13 @@ class DocumentClassifier:
                     },
                 )
 
-            response = await asyncio.to_thread(_call_gemini)
+            response = await tracked_call(
+                "google",
+                settings.classifier_model,
+                lambda: asyncio.to_thread(_call_gemini),
+                feature="classification",
+            )
             result = response.text.strip().lower()
-
-            print(f"[Classifier] LLM response: '{result}'")
 
             # Parsear resposta
             if "cupom" in result or "nfc" in result:
@@ -408,14 +391,15 @@ class DocumentClassifier:
             elif "extrato" in result or "bancario" in result:
                 return DocumentType.EXTRATO_BANCARIO
 
-            print(f"[Classifier] LLM retornou resposta inesperada: '{result}'")
             return DocumentType.UNKNOWN
 
         except ImportError:
-            print("[Classifier] google-genai nao instalado, pulando LLM")
+            logger.info("[Classifier] google-genai nao instalado, pulando LLM")
             return DocumentType.UNKNOWN
+        except AIUnavailable:
+            raise
         except Exception as e:
-            print(f"[Classifier] Erro no LLM: {type(e).__name__}: {e}")
+            logger.error("_classify_by_llm_failed error_type=%s", type(e).__name__)
             return DocumentType.UNKNOWN
 
     def get_stats(self) -> dict:

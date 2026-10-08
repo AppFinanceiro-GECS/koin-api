@@ -19,6 +19,7 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.ai_usage import AIUnavailable, metered, tracked_call
 from app.core.config import settings
 from app.core.utils import utc_now
 from app.models.account import Account
@@ -174,6 +175,8 @@ Exemplos: "cartoes,fluxo" ou "geral" ou "mercado" ou "cartoes,geral"."""
             domains = [d for d in domains if d in self.VALID_DOMAINS]
 
             return domains if domains else ["geral"]
+        except AIUnavailable:
+            raise
         except Exception:
             # Fallback para classificação por keywords se LLM falhar
             # Se mensagem é curta e temos histórico, tentar extrair domínio do histórico
@@ -197,12 +200,17 @@ Exemplos: "cartoes,fluxo" ou "geral" ou "mercado" ou "cartoes,geral"."""
             raise ValueError("Google API key not configured")
 
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{settings.classifier_model}:generateContent?key={api_key}",
-                json={
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0, "maxOutputTokens": 50},
-                },
+            response = await tracked_call(
+                "google",
+                settings.classifier_model,
+                lambda: client.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{settings.classifier_model}:generateContent?key={api_key}",
+                    json={
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {"temperature": 0, "maxOutputTokens": 50},
+                    },
+                ),
+                feature="chat_classification",
             )
             if response.status_code != 200:
                 raise ValueError(f"API error: {response.status_code}")
@@ -2638,6 +2646,7 @@ COMO RESPONDER:
             if old_ids:
                 await self.db.execute(delete(ChatMessage).where(ChatMessage.id.in_(old_ids)))
 
+    @metered("chat")
     async def chat(
         self, user: User, message: str, conversation_id: str | None = None
     ) -> ChatResponse:
@@ -3823,6 +3832,8 @@ PONTOS IMPORTANTES:
                 return await self._call_mistral(system_prompt, messages)
             else:
                 return "Desculpe, nenhum provider de IA esta configurado. Configure GOOGLE_API_KEY ou MISTRAL_API_KEY e defina CHAT_PROVIDER ou VISION_PROVIDER."
+        except AIUnavailable:
+            raise
         except Exception as e:
             return f"Desculpe, ocorreu um erro ao processar sua mensagem: {str(e)}"
 
@@ -3852,15 +3863,19 @@ PONTOS IMPORTANTES:
         model = settings.chat_model or settings.vision_model
 
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
-                json={
-                    "contents": contents,
-                    "generationConfig": {
-                        "temperature": 0.4,
-                        "maxOutputTokens": 2500,  # Aumentado para respostas detalhadas
+            response = await tracked_call(
+                "google",
+                settings.chat_model or settings.vision_model,
+                lambda: client.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
+                    json={
+                        "contents": contents,
+                        "generationConfig": {
+                            "temperature": 0.4,
+                            "maxOutputTokens": 2500,  # Aumentado para respostas detalhadas
+                        },
                     },
-                },
+                ),
             )
 
             if response.status_code != 200:
@@ -3880,18 +3895,22 @@ PONTOS IMPORTANTES:
             mistral_messages.append({"role": msg["role"], "content": msg["content"]})
 
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                "https://api.mistral.ai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "mistral-small-latest",
-                    "messages": mistral_messages,
-                    "max_tokens": 2500,  # Aumentado para respostas detalhadas
-                    "temperature": 0.4,
-                },
+            response = await tracked_call(
+                "mistral",
+                settings.chat_model or settings.mistral_llm_model,
+                lambda: client.post(
+                    "https://api.mistral.ai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": settings.chat_model or settings.mistral_llm_model,
+                        "messages": mistral_messages,
+                        "max_tokens": 2500,  # Aumentado para respostas detalhadas
+                        "temperature": 0.4,
+                    },
+                ),
             )
 
             if response.status_code != 200:

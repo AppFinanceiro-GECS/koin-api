@@ -8,8 +8,10 @@ Este modulo foi refatorado para seguir Clean Code:
 - Classificador de documentos em document_classifier.py
 """
 
+import logging
 from pathlib import Path
 
+from app.core.ai_usage import AIUnavailable
 from app.core.config import settings
 
 from .document_classifier import DocumentClassifier
@@ -19,6 +21,8 @@ from .prompts import EXTRACTION_PROMPT
 from .providers import AnthropicProvider, GoogleProvider, MistralProvider, OpenAIProvider
 from .response_parser import ResponseParser
 from .schemas import FaturaExtracao
+
+logger = logging.getLogger(__name__)
 
 
 class LLMOCRService:
@@ -34,8 +38,11 @@ class LLMOCRService:
         self.classifier = DocumentClassifier() if use_classifier else None
         self._provider = None
         self._prompts_cache = {}  # Cache de prompts carregados
-        print(
-            f"[LLM_OCR] Initialized: provider={self.provider_name}, model={self.model}, classifier={use_classifier}"
+        logger.info(
+            "[LLM_OCR] Initialized: provider=%s, model=%s, classifier=%s",
+            self.provider_name,
+            self.model,
+            use_classifier,
         )
 
     def _load_prompt(self, filename: str) -> str:
@@ -52,7 +59,6 @@ class LLMOCRService:
             return prompt
 
         # Fallback para prompt generico
-        print(f"[LLM_OCR] AVISO: Prompt {filename} nao encontrado, usando EXTRACTION_PROMPT")
         return EXTRACTION_PROMPT
 
     def _get_provider(self, prompt: str | None = None):
@@ -109,9 +115,6 @@ class LLMOCRService:
         Returns:
             Dict com items, card_info, document_type ou error
         """
-        print(
-            f"[LLM_OCR] extract_from_image: provider={self.provider_name}, mime_type={mime_type}, size={len(image_content)}"
-        )
 
         try:
             is_pdf = mime_type == "application/pdf" or mime_type.endswith("/pdf")
@@ -120,17 +123,19 @@ class LLMOCRService:
 
             # 1. Tentar processar diretamente (PDF ou imagem)
             if is_pdf:
-                print(f"[LLM_OCR] Processing PDF via {self.provider_name}")
+                logger.info("[LLM_OCR] Processing PDF via %s", self.provider_name)
                 try:
                     result = await provider.extract_from_pdf(image_content, filename, password)
+                except AIUnavailable:
+                    raise
                 except Exception as primary_err:
                     # Primary provider failed — try fallback before giving up
-                    print(
-                        f"[LLM_OCR] Primary provider ({self.provider_name}) failed: {type(primary_err).__name__}: {primary_err}"
+                    logger.error(
+                        "extract_from_image_failed error_type=%s", type(primary_err).__name__
                     )
                     fallback_provider = self._get_fallback_provider()
                     if fallback_provider:
-                        print("[LLM_OCR] Trying fallback provider...")
+                        logger.info("[LLM_OCR] Trying fallback provider...")
                         result = await fallback_provider.extract_from_pdf(
                             image_content, filename, password
                         )
@@ -139,7 +144,9 @@ class LLMOCRService:
 
                 # Se provider retornou None, precisa converter para imagens
                 if result is None:
-                    print("[LLM_OCR] Provider nao suporta PDF direto, convertendo para imagens...")
+                    logger.info(
+                        "[LLM_OCR] Provider nao suporta PDF direto, convertendo para imagens..."
+                    )
                     result = await self._process_pdf_as_images(image_content, password)
             else:
                 result = await provider.extract_from_image(image_content, mime_type)
@@ -155,8 +162,9 @@ class LLMOCRService:
                 if pdf_page_count > 1:
                     fallback_provider = self._get_fallback_provider()
                     if fallback_provider:
-                        print(
-                            f"[LLM_OCR] 0 items extracted from {pdf_page_count}-page PDF, retrying with fallback provider"
+                        logger.info(
+                            "[LLM_OCR] 0 items extracted from %s-page PDF, retrying with fallback provider",
+                            pdf_page_count,
                         )
                         try:
                             retry_result = await fallback_provider.extract_from_pdf(
@@ -167,15 +175,18 @@ class LLMOCRService:
                                 and not retry_result.get("error")
                                 and retry_result.get("items")
                             ):
-                                print(
-                                    f"[LLM_OCR] Fallback succeeded: {len(retry_result['items'])} items extracted"
+                                logger.info(
+                                    "[LLM_OCR] Fallback succeeded: %s items extracted",
+                                    len(retry_result["items"]),
                                 )
                                 result = retry_result
                             else:
-                                print("[LLM_OCR] Fallback also returned 0 items or error")
+                                logger.info("[LLM_OCR] Fallback also returned 0 items or error")
+                        except AIUnavailable:
+                            raise
                         except Exception as retry_err:
-                            print(
-                                f"[LLM_OCR] Fallback retry failed: {type(retry_err).__name__}: {retry_err}"
+                            logger.error(
+                                "extract_from_image_failed error_type=%s", type(retry_err).__name__
                             )
 
             # 3. Aplicar validacoes e limpezas
@@ -186,12 +197,6 @@ class LLMOCRService:
             total_amount = result.get("total_amount") or (
                 card_info.get("total_amount") if card_info else None
             )
-
-            # DEBUG: Log para verificar total_amount
-            print(f"[LLM_OCR] DEBUG: document_type={document_type}, total_amount={total_amount}")
-            print(f"[LLM_OCR] DEBUG: result keys={list(result.keys())}")
-            if "total_amount" in result:
-                print(f"[LLM_OCR] DEBUG: result['total_amount']={result.get('total_amount')}")
 
             # Extrair OCR text (disponível quando Mistral provider é usado)
             ocr_text = result.pop("_ocr_text", None)
@@ -205,9 +210,7 @@ class LLMOCRService:
                 # Validar resultado final
                 validation = self.validator.validate_extraction(items, card_info)
                 if not validation["is_valid"]:
-                    print(
-                        f"[LLM_OCR] AVISO: Validacao falhou - diff={validation['difference']:.2f}"
-                    )
+                    logger.warning("document_validation_failed")
 
                 # Divergence warning: sum of amounts vs card_info total
                 if card_info and card_info.get("total_amount") is not None:
@@ -215,18 +218,16 @@ class LLMOCRService:
                     card_total = card_info["total_amount"]
                     divergence = abs(items_sum - card_total)
                     if divergence > 100:
-                        print(
-                            f"[LLM_OCR] WARNING: items sum R$ {items_sum:.2f} diverges from "
-                            f"card_info.total R$ {card_total:.2f} by R$ {divergence:.2f} (>R$100)"
-                        )
+                        logger.warning("document_validation_failed status=sum_mismatch")
 
             return result
 
-        except Exception as e:
-            print(f"[LLM_OCR] Error: {type(e).__name__}: {e}")
-            import traceback
+        except AIUnavailable:
+            raise
 
-            traceback.print_exc()
+        except Exception as e:
+            logger.error("extract_from_image_failed error_type=%s", type(e).__name__)
+
             return {"items": [], "error": str(e)}
 
     def _create_provider(self, provider_name: str):
@@ -261,14 +262,14 @@ class LLMOCRService:
         parse_fn = self.parser.parse
 
         if self.provider_name == "google" and settings.mistral_api_key:
-            print("[LLM_OCR] Fallback provider: mistral")
+            logger.info("[LLM_OCR] Fallback provider: mistral")
             return MistralProvider(
                 model=None,
                 prompt=self._provider.prompt if self._provider else EXTRACTION_PROMPT,
                 parse_response_fn=parse_fn,
             )
         elif self.provider_name == "mistral" and settings.google_api_key:
-            print("[LLM_OCR] Fallback provider: google")
+            logger.info("[LLM_OCR] Fallback provider: google")
             return GoogleProvider(
                 model=settings.vision_model,
                 prompt=self._provider.prompt if self._provider else EXTRACTION_PROMPT,
@@ -276,7 +277,7 @@ class LLMOCRService:
                 parse_response_fn=parse_fn,
             )
 
-        print("[LLM_OCR] No fallback provider available")
+        logger.info("[LLM_OCR] No fallback provider available")
         return None
 
     def _get_pdf_page_count(self, pdf_bytes: bytes) -> int:
@@ -288,6 +289,8 @@ class LLMOCRService:
             count = len(doc)
             doc.close()
             return count
+        except AIUnavailable:
+            raise
         except Exception:
             return 0
 
@@ -313,7 +316,7 @@ class LLMOCRService:
         # Se temos multiplas paginas, enviar todas juntas para dar contexto completo ao LLM
         # Isso evita processar página por página e perder contexto
         if len(images) > 1 and self.provider_name in ("google", "mistral"):
-            print(f"[LLM_OCR] Processing {len(images)} pages together for full context")
+            logger.info("[LLM_OCR] Processing %s pages together for full context", len(images))
             return await provider.extract_multi_page(images)
 
         # Processar paginas separadamente
@@ -358,9 +361,6 @@ class LLMOCRService:
         if all_cards:
             # Use the card that appears most times (not just first occurrence)
             main_card = card_counts.most_common(1)[0][0]
-            print(
-                f"[LLM_OCR] Found real card numbers: {dict(card_counts)}, using most frequent: {main_card}"
-            )
 
             # Get card_info from a page with the main card (prefer page with most complete info)
             for page_num, page_result in all_page_results:
@@ -425,21 +425,12 @@ class LLMOCRService:
 
                     if is_likely_example:
                         skipped_pages.append((page_num, "example data detected"))
-                        print(
-                            f"[LLM_OCR] Page {page_num} looks like example data (round:{round_values}, no_inst:{no_installments}, generic:{generic_names})"
-                        )
                         continue
 
                 valid_page_results.append((page_num, page_result))
 
-            if skipped_pages:
-                print(f"[LLM_OCR] Skipped placeholder pages: {skipped_pages}")
-
             # Second pass: If multiple real cards detected, filter by main card
             if len(all_cards) > 1:
-                print(
-                    f"[LLM_OCR] Multiple real cards detected: {all_cards}, keeping only: {main_card}"
-                )
                 # Keep only items from pages with the main card
                 filtered_items = []
                 for page_num, page_result in valid_page_results:
@@ -449,20 +440,21 @@ class LLMOCRService:
                         page_card == main_card or not page_card
                     ):  # Include if matches main card or no card info
                         filtered_items.extend(page_items)
-                    else:
-                        print(
-                            f"[LLM_OCR] Skipping {len(page_items)} items from page {page_num} (card {page_card})"
-                        )
 
-                print(f"[LLM_OCR] Filtered {len(all_items)} -> {len(filtered_items)} items")
+                logger.info(
+                    "[LLM_OCR] Filtered %s -> %s items", len(all_items), len(filtered_items)
+                )
                 all_items = filtered_items
             elif len(valid_page_results) < len(all_page_results):
                 # Some pages were skipped due to placeholder, rebuild items list
                 all_items = []
                 for page_num, page_result in valid_page_results:
                     all_items.extend(page_result.get("items", []))
-                print(
-                    f"[LLM_OCR] Filtered pages: kept {len(valid_page_results)}/{len(all_page_results)} pages, {len(all_items)} items"
+                logger.info(
+                    "[LLM_OCR] Filtered pages: kept %s/%s pages, %s items",
+                    len(valid_page_results),
+                    len(all_page_results),
+                    len(all_items),
                 )
 
         # Post-processing: Remove duplicate installments (same item, different installment number)
@@ -501,22 +493,18 @@ class LLMOCRService:
                         # Keep the one with lowest installment_current
                         existing = seen_installments[key]
                         if item.get("installment_current") < existing.get("installment_current"):
-                            print(
-                                f"[LLM_OCR] Replacing duplicate installment: {desc} {existing.get('installment_current')}/{total} R${amount} -> {item.get('installment_current')}/{total} R${amount}"
-                            )
                             seen_installments[key] = item
-                        else:
-                            print(
-                                f"[LLM_OCR] Skipping duplicate installment: {desc} {item.get('installment_current')}/{total} R${amount} (keeping {existing.get('installment_current')}/{total})"
-                            )
                 else:
                     non_installment_items.append(item)
 
             # Rebuild items list
             filtered_items = list(seen_installments.values()) + non_installment_items
             if len(filtered_items) < len(all_items):
-                print(
-                    f"[LLM_OCR] Removed {len(all_items) - len(filtered_items)} duplicate installments: {len(all_items)} -> {len(filtered_items)} items"
+                logger.info(
+                    "[LLM_OCR] Removed %s duplicate installments: %s -> %s items",
+                    len(all_items) - len(filtered_items),
+                    len(all_items),
+                    len(filtered_items),
                 )
                 all_items = filtered_items
 
@@ -527,10 +515,6 @@ class LLMOCRService:
             items_sum = sum(item.get("amount", 0) for item in all_items)
             difference = abs(total_amount - items_sum)
 
-            print(
-                f"[LLM_OCR] Sum validation: total={total_amount:.2f}, sum={items_sum:.2f}, diff={difference:.2f}"
-            )
-
             if difference > 50:
                 validation_warning = {
                     "type": "sum_mismatch",
@@ -539,7 +523,6 @@ class LLMOCRService:
                     "difference": difference,
                     "message": f"ALERTA: Soma dos itens (R$ {items_sum:.2f}) difere do total da fatura (R$ {total_amount:.2f}) em R$ {difference:.2f}. Possível causa: LLM ignorou alguma coluna/seção de transações.",
                 }
-                print(f"[LLM_OCR] ⚠️ {validation_warning['message']}")
 
         result = {
             "items": all_items,
@@ -564,8 +547,10 @@ class LLMOCRService:
         Returns:
             Dict com items, card_info, document_type ou error
         """
-        print(
-            f"[LLM_OCR] extract_from_multiple_images: provider={self.provider_name}, num_images={len(images)}"
+        logger.info(
+            "[LLM_OCR] extract_from_multiple_images: provider=%s, num_images=%s",
+            self.provider_name,
+            len(images),
         )
 
         try:
@@ -620,15 +605,14 @@ class LLMOCRService:
 
                     validation = self.validator.validate_extraction(items, card_info)
                     if not validation["is_valid"]:
-                        print(
-                            f"[LLM_OCR] AVISO: Validacao falhou - diff={validation['difference']:.2f}"
-                        )
+                        logger.warning("document_validation_failed")
 
             return result
 
-        except Exception as e:
-            print(f"[LLM_OCR] Error in extract_from_multiple_images: {type(e).__name__}: {e}")
-            import traceback
+        except AIUnavailable:
+            raise
 
-            traceback.print_exc()
+        except Exception as e:
+            logger.error("extract_from_multiple_images_failed error_type=%s", type(e).__name__)
+
             return {"items": [], "error": str(e)}

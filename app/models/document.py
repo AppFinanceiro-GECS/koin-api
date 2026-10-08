@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.utils import utc_now
@@ -30,6 +30,7 @@ class DocumentType(str, Enum):
 
 class Document(Base):
     __tablename__ = "documents"
+    __table_args__ = (Index("uq_documents_user_file_hash", "user_id", "file_hash", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)

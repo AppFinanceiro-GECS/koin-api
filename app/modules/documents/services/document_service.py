@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 import os
 from datetime import date
 from decimal import Decimal
@@ -9,8 +10,10 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, HTTPException, UploadFile, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.ai_usage import AIUnavailable, metered, reserve_document, usage_context
 from app.core.config import settings
 from app.core.database import async_session_maker
 from app.core.utils import utc_now
@@ -19,11 +22,11 @@ from app.models.document import Document, DocumentStatus
 from app.models.transaction import Transaction
 from app.models.user import User
 
+logger = logging.getLogger(__name__)
+
 
 class PasswordRequiredError(Exception):
     """Special error for inline password request - not a failure"""
-
-    pass
 
 
 def _write_file_sync(file_path: Path, content: bytes) -> None:
@@ -61,15 +64,16 @@ async def process_document_background(
     """
     import gc
 
-    print(f"[DOC_BG] Iniciando processamento background: document_id={document_id}")
+    logger.info("[DOC_BG] Iniciando processamento background: document_id=%s", document_id)
 
     file_bytes = None
     try:
         # Ler arquivo do disco (em thread para nao bloquear)
         file_bytes = await asyncio.to_thread(_read_file_sync, file_path)
-        print(f"[DOC_BG] Arquivo lido: {len(file_bytes)} bytes")
     except Exception as e:
-        print(f"[DOC_BG] Erro ao ler arquivo {file_path}: {e}")
+        logger.error(
+            "document_processing_failed document_id=%s error_type=%s", document_id, type(e).__name__
+        )
         async with async_session_maker() as db:
             result = await db.execute(select(Document).where(Document.id == document_id))
             document = result.scalar_one_or_none()
@@ -86,7 +90,7 @@ async def process_document_background(
             document = result.scalar_one_or_none()
 
             if not document:
-                print(f"[DOC_BG] Documento {document_id} nao encontrado")
+                logger.info("[DOC_BG] Documento %s nao encontrado", document_id)
                 return
 
             # Buscar usuario
@@ -96,7 +100,6 @@ async def process_document_background(
             user = result.scalar_one_or_none()
 
             if not user:
-                print(f"[DOC_BG] Usuario {user_id} nao encontrado")
                 document.status = DocumentStatus.FAILED
                 document.error_message = "Usuario nao encontrado"
                 await db.commit()
@@ -113,9 +116,10 @@ async def process_document_background(
             else:
                 llm_service = LLMOCRService(provider="google", model=settings.vision_model)
 
-            extraction_data = await llm_service.extract_from_image(
-                file_bytes, mime_type, filename=filename, password=password
-            )
+            with usage_context(db, user_id, document_id):
+                extraction_data = await llm_service.extract_from_image(
+                    file_bytes, mime_type, filename=filename, password=password
+                )
 
             # Verificar se houve erro
             if extraction_data is None or extraction_data.get("error"):
@@ -123,7 +127,7 @@ async def process_document_background(
                 document.error_message = (
                     extraction_data.get("error") if extraction_data else "Extracao falhou"
                 )
-                print(f"[DOC_BG] Documento {document_id} falhou: {document.error_message}")
+                logger.error("document_processing_failed document_id=%s", document_id)
             else:
                 # Validar se a soma dos itens bate com o total da fatura
                 if extraction_data.get("document_type") == "fatura_cartao":
@@ -134,16 +138,8 @@ async def process_document_background(
                         items_sum = sum(item.get("amount", 0) for item in items)
                         difference = abs(total_amount - items_sum)
 
-                        print(
-                            f"[DOC_BG] Validação de soma: total_fatura=R$ {total_amount:.2f}, soma_items=R$ {items_sum:.2f}, diff=R$ {difference:.2f}"
-                        )
-
                         # Se diferença > R$ 50, há itens faltando ou sobrando
                         if difference > 50:
-                            print(f"[DOC_BG] ⚠️ ALERTA: Diferença de R$ {difference:.2f} detectada!")
-                            print(
-                                "[DOC_BG] Possível causa: LLM ignorou alguma coluna/seção de transações"
-                            )
                             # Adicionar flag nos extracted_data para o frontend alertar o usuário
                             extraction_data["validation_warning"] = {
                                 "type": "sum_mismatch",
@@ -157,18 +153,21 @@ async def process_document_background(
                 document.document_type = extraction_data.get("document_type")
                 # Salvar dados extraidos para recuperacao posterior
                 document.extracted_data = extraction_data
-                print(
-                    f"[DOC_BG] Documento {document_id} processado com sucesso: {len(extraction_data.get('items', []))} itens"
+                logger.info(
+                    "document_processing_completed document_id=%s item_count=%s",
+                    document_id,
+                    len(extraction_data.get("items", [])),
                 )
 
             document.processed_at = utc_now()
             await db.commit()
 
         except Exception as e:
-            print(f"[DOC_BG] Erro ao processar documento {document_id}: {e}")
-            import traceback
-
-            traceback.print_exc()
+            logger.error(
+                "document_processing_failed document_id=%s error_type=%s",
+                document_id,
+                type(e).__name__,
+            )
 
             try:
                 result = await db.execute(select(Document).where(Document.id == document_id))
@@ -190,6 +189,54 @@ class DocumentService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _find_by_hash(self, user: User, file_hash: str) -> Document | None:
+        result = await self.db.execute(
+            select(Document).where(
+                Document.user_id == user.id,
+                Document.file_hash == file_hash,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    def _duplicate_error(existing: Document) -> HTTPException:
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "duplicate",
+                "message": "Este documento ja foi enviado",
+                "document_id": existing.id,
+            },
+        )
+
+    async def _resolve_duplicate(self, user: User, file_hash: str, force: bool) -> Document | None:
+        """Bloqueia reenvio (409) ou, com force=True, devolve o documento existente para reprocessar."""
+        existing = await self._find_by_hash(user, file_hash)
+        if existing is None:
+            return None
+        if not force:
+            raise self._duplicate_error(existing)
+        if existing.status == DocumentStatus.PROCESSING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Documento ja esta sendo processado",
+            )
+        existing.error_message = None
+        return existing
+
+    async def _add_document(self, user: User, document: Document) -> None:
+        """Persiste o documento; upload concorrente do mesmo arquivo vira 409."""
+        self.db.add(document)
+        try:
+            await self.db.flush()
+        except IntegrityError:
+            await self.db.rollback()
+            existing = await self._find_by_hash(user, document.file_hash)
+            if existing is None:
+                raise
+            raise self._duplicate_error(existing)
+        await self.db.refresh(document)
+
     async def upload_async(
         self,
         user: User,
@@ -197,6 +244,7 @@ class DocumentService:
         background_tasks: BackgroundTasks,
         password: str | None = None,
         credit_card_id: int | None = None,
+        force: bool = False,
     ) -> dict:
         """
         Upload async: retorna imediatamente e processa em background.
@@ -208,6 +256,7 @@ class DocumentService:
             background_tasks: FastAPI background tasks
             password: Optional password for protected PDFs
             credit_card_id: Optional credit card ID to fetch saved password
+            force: Reprocessa o documento existente em vez de devolver 409
         """
         from app.modules.documents.schemas.document import DocumentAsyncUploadResponse
 
@@ -256,11 +305,8 @@ class DocumentService:
 
                         try:
                             password = decrypt_password(card.invoice_password_encrypted)
-                            print(
-                                f"[DOC_SVC_ASYNC] Using saved password from credit card {credit_card_id}"
-                            )
                         except Exception as e:
-                            print(f"[DOC_SVC_ASYNC] Failed to decrypt password: {e}")
+                            logger.error("upload_async_failed error_type=%s", type(e).__name__)
 
                 # If still no password, raise special error
                 if password is None:
@@ -268,6 +314,8 @@ class DocumentService:
 
         # Calcular hash para dedupe
         file_hash = hashlib.sha256(content).hexdigest()
+        existing_document = await self._resolve_duplicate(user, file_hash, force)
+        await reserve_document(self.db, user)
 
         # Salvar arquivo
         upload_dir = Path(settings.upload_dir) / str(user.id)
@@ -279,19 +327,23 @@ class DocumentService:
         # Guardar tamanho antes de limpar content
         content_size = len(content)
 
-        # Criar registro com status PROCESSING
-        document = Document(
-            user_id=user.id,
-            file_path=str(file_path),
-            file_hash=file_hash,
-            file_size=content_size,
-            mime_type=file.content_type or f"application/{ext}",
-            original_filename=file.filename or "unknown",
-            status=DocumentStatus.PROCESSING,  # Ja marca como processing
-        )
-        self.db.add(document)
-        await self.db.flush()
-        await self.db.refresh(document)
+        if existing_document is not None:
+            document = existing_document
+            document.file_path = str(file_path)
+            document.status = DocumentStatus.PROCESSING
+            await self.db.flush()
+        else:
+            # Criar registro com status PROCESSING
+            document = Document(
+                user_id=user.id,
+                file_path=str(file_path),
+                file_hash=file_hash,
+                file_size=content_size,
+                mime_type=file.content_type or f"application/{ext}",
+                original_filename=file.filename or "unknown",
+                status=DocumentStatus.PROCESSING,  # Ja marca como processing
+            )
+            await self._add_document(user, document)
         # Gravar antes de agendar: a tarefa abre outra sessão e pode começar antes do
         # commit automático do fim da requisição (FastAPI >= 0.120)
         await self.db.commit()
@@ -310,7 +362,7 @@ class DocumentService:
             password,  # Pass password to background task
         )
 
-        print(f"[DOC_SVC] Upload async agendado: document_id={document.id}")
+        logger.info("[DOC_SVC] Upload async agendado: document_id=%s", document.id)
 
         return DocumentAsyncUploadResponse(
             id=document.id,
@@ -324,6 +376,7 @@ class DocumentService:
         file: UploadFile,
         password: str | None = None,
         credit_card_id: int | None = None,
+        force: bool = False,
     ) -> Document:
         # Validar extensao
         ext = file.filename.split(".")[-1].lower() if file.filename else ""
@@ -370,11 +423,8 @@ class DocumentService:
 
                         try:
                             password = decrypt_password(card.invoice_password_encrypted)
-                            print(
-                                f"[DOC_SVC] Using saved password from credit card {credit_card_id}"
-                            )
                         except Exception as e:
-                            print(f"[DOC_SVC] Failed to decrypt password: {e}")
+                            logger.error("upload_failed error_type=%s", type(e).__name__)
                             # Password might be invalid, will raise PasswordRequiredError below
 
                 # If still no password, raise special error
@@ -383,23 +433,9 @@ class DocumentService:
 
         # Calcular hash para dedupe
         file_hash = hashlib.sha256(content).hexdigest()
-
-        # Verificar se e duplicata (apenas informativo)
-        existing_result = await self.db.execute(
-            select(Document)
-            .where(
-                Document.user_id == user.id,
-                Document.file_hash == file_hash,
-            )
-            .limit(1)
-        )
-        existing_document = existing_result.scalar_one_or_none()
+        existing_document = await self._resolve_duplicate(user, file_hash, force)
+        await reserve_document(self.db, user)
         is_duplicate = existing_document is not None
-
-        if is_duplicate:
-            print(
-                f"[DOC_SVC] Duplicate detected (informative only): existing_id={existing_document.id}"
-            )
 
         # Salvar arquivo
         upload_dir = Path(settings.upload_dir) / str(user.id)
@@ -409,19 +445,21 @@ class DocumentService:
         # Escrita em thread separada para nao bloquear o event loop
         await asyncio.to_thread(_write_file_sync, file_path, content)
 
-        # Criar registro
-        document = Document(
-            user_id=user.id,
-            file_path=str(file_path),
-            file_hash=file_hash,
-            file_size=len(content),
-            mime_type=file.content_type or f"application/{ext}",
-            original_filename=file.filename or "unknown",
-            status=DocumentStatus.PENDING,
-        )
-        self.db.add(document)
-        await self.db.flush()
-        await self.db.refresh(document)
+        if existing_document is not None:
+            document = existing_document
+            document.file_path = str(file_path)
+            document.status = DocumentStatus.PENDING
+        else:
+            document = Document(
+                user_id=user.id,
+                file_path=str(file_path),
+                file_hash=file_hash,
+                file_size=len(content),
+                mime_type=file.content_type or f"application/{ext}",
+                original_filename=file.filename or "unknown",
+                status=DocumentStatus.PENDING,
+            )
+            await self._add_document(user, document)
 
         # Processar documento e extrair dados (sem salvar extracao)
         extraction_data = await self._process_document(document, content, password)
@@ -575,7 +613,7 @@ class DocumentService:
 
         return response
 
-    async def upload_batch(self, user: User, files: list) -> Document:
+    async def upload_batch(self, user: User, files: list, force: bool = False) -> Document:
         """Upload de multiplas imagens como 1 documento (para cupons grandes)"""
         from app.modules.documents.schemas.document import (
             CardInfoResponse,
@@ -643,23 +681,9 @@ class DocumentService:
 
         # Calcular hash combinado para dedupe
         file_hash = hashlib.sha256(combined_hash_data).hexdigest()
-
-        # Verificar se e duplicata
-        existing_result = await self.db.execute(
-            select(Document)
-            .where(
-                Document.user_id == user.id,
-                Document.file_hash == file_hash,
-            )
-            .limit(1)
-        )
-        existing_document = existing_result.scalar_one_or_none()
+        existing_document = await self._resolve_duplicate(user, file_hash, force)
+        await reserve_document(self.db, user)
         is_duplicate = existing_document is not None
-
-        if is_duplicate:
-            print(
-                f"[DOC_SVC] Batch duplicate detected (informative only): existing_id={existing_document.id}"
-            )
 
         # Salvar primeira imagem como referencia
         upload_dir = Path(settings.upload_dir) / str(user.id)
@@ -670,19 +694,21 @@ class DocumentService:
         file_path = upload_dir / f"{file_hash}.{ext}"
         await asyncio.to_thread(_write_file_sync, file_path, first_content)
 
-        # Criar registro do documento
-        document = Document(
-            user_id=user.id,
-            file_path=str(file_path),
-            file_hash=file_hash,
-            file_size=total_size,
-            mime_type=first_mime,
-            original_filename=f"batch_{len(files)}_images",
-            status=DocumentStatus.PENDING,
-        )
-        self.db.add(document)
-        await self.db.flush()
-        await self.db.refresh(document)
+        if existing_document is not None:
+            document = existing_document
+            document.file_path = str(file_path)
+            document.status = DocumentStatus.PENDING
+        else:
+            document = Document(
+                user_id=user.id,
+                file_path=str(file_path),
+                file_hash=file_hash,
+                file_size=total_size,
+                mime_type=first_mime,
+                original_filename=f"batch_{len(files)}_images",
+                status=DocumentStatus.PENDING,
+            )
+            await self._add_document(user, document)
 
         # Processar multiplas imagens usando LLM
         extraction_data = await self._process_batch_images(document, images)
@@ -862,12 +888,15 @@ class DocumentService:
         jpeg_content = await asyncio.to_thread(_convert)
         return jpeg_content, "image/jpeg"
 
+    @metered("extraction", document_arg="document")
     async def _process_batch_images(
         self, document: Document, images: list[tuple[bytes, str]]
     ) -> dict | None:
         """Processa multiplas imagens e extrai dados usando LLM"""
         try:
-            print(f"[DOC_SVC] _process_batch_images: id={document.id}, num_images={len(images)}")
+            logger.info(
+                "[DOC_SVC] _process_batch_images: id=%s, num_images=%s", document.id, len(images)
+            )
             document.status = DocumentStatus.PROCESSING
             await self.db.flush()
 
@@ -877,27 +906,26 @@ class DocumentService:
 
             if settings.mistral_api_key:
                 llm_service = LLMOCRService(provider="mistral", model=settings.mistral_llm_model)
-                print("[DOC_SVC] Using Mistral for batch image extraction")
+                logger.info("[DOC_SVC] Using Mistral for batch image extraction")
             else:
                 llm_service = LLMOCRService(provider="google", model=settings.vision_model)
-                print("[DOC_SVC] Using Google for batch image extraction (Mistral not configured)")
+                logger.info(
+                    "[DOC_SVC] Using Google for batch image extraction (Mistral not configured)"
+                )
             result = await llm_service.extract_from_multiple_images(images)
 
             items_count = len(result.get("items", [])) if result else 0
-            print(
-                f"[DOC_SVC] Batch extraction returned: items={items_count}, error={result.get('error')}"
-            )
 
             if result is None or (not result.get("items") and result.get("error")):
                 document.status = DocumentStatus.FAILED
                 document.error_message = result.get("error") if result else "Extracao falhou"
-                print(
-                    f"[DOC_SVC] Document {document.id} marked as FAILED: {document.error_message}"
-                )
+                logger.error("document_processing_failed document_id=%s", document.id)
             else:
                 document.status = DocumentStatus.COMPLETED
-                print(
-                    f"[DOC_SVC] Document {document.id} marked as COMPLETED with {items_count} items"
+                logger.info(
+                    "document_processing_completed document_id=%s item_count=%s",
+                    document.id,
+                    items_count,
                 )
 
             # Determinar tipo de documento
@@ -911,11 +939,16 @@ class DocumentService:
 
             return result
 
-        except Exception as e:
-            print(f"[DOC_SVC] EXCEPTION in _process_batch_images: {e}")
-            import traceback
+        except AIUnavailable:
+            raise
 
-            traceback.print_exc()
+        except Exception as e:
+            logger.error(
+                "document_processing_failed document_id=%s error_type=%s",
+                document.id,
+                type(e).__name__,
+            )
+
             document.status = DocumentStatus.FAILED
             document.error_message = str(e)
             await self.db.flush()
@@ -955,6 +988,18 @@ class DocumentService:
                 detail="Documento ja esta sendo processado",
             )
 
+        if not os.path.exists(document.file_path):
+            raise HTTPException(
+                status_code=status.HTTP_410_GONE,
+                detail={
+                    "error": "file_missing",
+                    "message": "O arquivo deste documento nao esta mais disponivel. "
+                    "Exclua o documento e envie o arquivo novamente.",
+                },
+            )
+
+        await reserve_document(self.db, user)
+
         # Ler arquivo em thread separada para nao bloquear o event loop
         content = await asyncio.to_thread(_read_file_sync, document.file_path)
 
@@ -970,8 +1015,13 @@ class DocumentService:
                 detail="Documento nao encontrado",
             )
 
-        # Apagar arquivo
-        if os.path.exists(document.file_path):
+        # Documentos antigos (anteriores ao indice unico) podem compartilhar o mesmo arquivo
+        shared_with = await self.db.scalar(
+            select(func.count())
+            .select_from(Document)
+            .where(Document.file_path == document.file_path, Document.id != document.id)
+        )
+        if not shared_with and os.path.exists(document.file_path):
             os.remove(document.file_path)
 
         await self.db.delete(document)
@@ -987,32 +1037,25 @@ class DocumentService:
             password: Optional password for protected PDFs
         """
         try:
-            print(
-                f"[DOC_SVC] _process_document: id={document.id}, mime_type={document.mime_type}, content_size={len(content)}"
-            )
             document.status = DocumentStatus.PROCESSING
             await self.db.flush()
 
             # Extrair dados com LLM
-            print("[DOC_SVC] Calling _extract_data...")
             extraction_data = await self._extract_data(document, content, password)
             items_count = len(extraction_data.get("items", [])) if extraction_data else 0
-            print(
-                f"[DOC_SVC] _extract_data returned: items={items_count}, error={document.error_message}"
-            )
 
             # Se houve erro na extracao, marcar como falha
             if extraction_data is None or (
                 not extraction_data.get("items") and document.error_message
             ):
                 document.status = DocumentStatus.FAILED
-                print(
-                    f"[DOC_SVC] Document {document.id} marked as FAILED: {document.error_message}"
-                )
+                logger.error("document_processing_failed document_id=%s", document.id)
             else:
                 document.status = DocumentStatus.COMPLETED
-                print(
-                    f"[DOC_SVC] Document {document.id} marked as COMPLETED with {items_count} items"
+                logger.info(
+                    "document_processing_completed document_id=%s item_count=%s",
+                    document.id,
+                    items_count,
                 )
 
             document.processed_at = utc_now()
@@ -1021,17 +1064,23 @@ class DocumentService:
 
             return extraction_data
 
-        except Exception as e:
-            print(f"[DOC_SVC] EXCEPTION in _process_document: {e}")
-            import traceback
+        except AIUnavailable:
+            raise
 
-            traceback.print_exc()
+        except Exception as e:
+            logger.error(
+                "document_processing_failed document_id=%s error_type=%s",
+                document.id,
+                type(e).__name__,
+            )
+
             document.status = DocumentStatus.FAILED
             document.error_message = str(e)
             await self.db.flush()
             await self.db.refresh(document)
             return None
 
+    @metered("extraction", document_arg="document")
     async def _extract_data(
         self, document: Document, content: bytes, password: str | None = None
     ) -> dict | None:
@@ -1042,7 +1091,6 @@ class DocumentService:
             content: File content as bytes
             password: Optional password for protected PDFs
         """
-        print(f"[DOC_SVC] _extract_data: content_size={len(content)}")
 
         # Verificar se e CSV ou Excel
         mime_type = document.mime_type or ""
@@ -1054,10 +1102,6 @@ class DocumentService:
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "application/vnd.ms-excel",
         ] or filename.lower().endswith((".csv", ".xlsx", ".xls"))
-
-        print(
-            f"[DOC_SVC] mime_type={mime_type}, filename={filename}, is_spreadsheet={is_spreadsheet}"
-        )
 
         if is_spreadsheet:
             # Usar parser de planilha
@@ -1084,16 +1128,13 @@ class DocumentService:
             else:
                 selected_provider = "google"
                 selected_model = settings.vision_model
-            print(f"[DOC_SVC] Using {selected_provider} for extraction")
+            logger.info("[DOC_SVC] Using %s for extraction", selected_provider)
 
             from app.modules.documents.services.llm_ocr_service import LLMOCRService
 
             llm_service = LLMOCRService(provider=selected_provider, model=selected_model)
             result = await llm_service.extract_from_image(
                 content, mime_type, filename=filename, password=password
-            )
-            print(
-                f"[DOC_SVC] LLM OCR result: items={len(result.get('items', []))}, error={result.get('error')}"
             )
 
         # Se houve erro na extracao
@@ -1253,7 +1294,7 @@ class DocumentService:
             return results
 
         except Exception as e:
-            print(f"[DOC_SVC] Error in batch duplicate check: {e}")
+            logger.error("_check_duplicates_batch_failed error_type=%s", type(e).__name__)
             # Em caso de erro, retornar todos como nao duplicados
             return [{"is_duplicate": False, "transaction_id": None} for _ in items]
 
@@ -1282,4 +1323,3 @@ class DocumentService:
 
         card.invoice_password_encrypted = encrypt_password(password)
         await self.db.commit()
-        print(f"[DOC_SVC] Saved encrypted password for credit card {card_id}")

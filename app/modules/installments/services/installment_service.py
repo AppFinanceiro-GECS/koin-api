@@ -1,5 +1,6 @@
 """Serviço para gerenciamento de parcelas e detecção de duplicatas"""
 
+import logging
 from datetime import date, timedelta
 
 from dateutil.relativedelta import relativedelta
@@ -12,6 +13,8 @@ from app.models.installment import InstallmentSeries, InstallmentSeriesStatus
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction, TransactionType
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 
 class InstallmentService:
@@ -145,17 +148,8 @@ class InstallmentService:
             InstallmentSeries se encontrar match, None caso contrario
         """
         # DEBUG: Log dos parâmetros recebidos
-        print(
-            f"[FUZZY DEBUG] find_matching_series_fuzzy chamada: "
-            f"merchant='{merchant_name}', amount={installment_amount}, "
-            f"total={installment_total}, card_id={credit_card_id}"
-        )
 
         if not merchant_name or not installment_amount or not installment_total:
-            print(
-                f"[FUZZY DEBUG] Retornando None - parametros invalidos: "
-                f"merchant={bool(merchant_name)}, amount={bool(installment_amount)}, total={bool(installment_total)}"
-            )
             return None
 
         # Normalizar merchant name da fatura
@@ -188,19 +182,9 @@ class InstallmentService:
         result = await self.db.execute(query)
         candidates = list(result.scalars().all())
 
-        # DEBUG: Log dos candidatos encontrados
-        print(f"[FUZZY DEBUG] Candidatos encontrados: {len(candidates)}")
-        for c in candidates[:5]:  # Mostrar max 5
-            print(
-                f"  - id={c.id}, merchant='{c.merchant_name}', amount={c.installment_amount}, "
-                f"count={c.installment_count}, paid={c.paid_count}"
-            )
+        logger.debug("[FUZZY DEBUG] Candidatos encontrados: %s", len(candidates))
 
         if not candidates:
-            print(
-                f"[FUZZY DEBUG] Nenhum candidato encontrado para: "
-                f"amount_range=[{min_amount:.2f}, {max_amount:.2f}], total={installment_total}"
-            )
             return None
 
         # Score candidates por similaridade do nome do merchant
@@ -242,21 +226,9 @@ class InstallmentService:
                 best_score = similarity
                 best_match = series
 
-                print(
-                    f"[InstallmentService] Fuzzy match candidato: "
-                    f"'{merchant_name}' ~= '{series.merchant_name}' "
-                    f"(score: {similarity:.2f})"
-                )
-
                 # Se match quase perfeito, usar imediatamente
                 if similarity >= 0.9:
                     break
-
-        if best_match:
-            print(
-                f"[InstallmentService] Fuzzy match encontrado: series_id={best_match.id}, "
-                f"merchant='{best_match.merchant_name}', score={best_score:.2f}"
-            )
 
         return best_match
 
@@ -679,13 +651,6 @@ class InstallmentService:
         """
         created_transactions = []
 
-        print(
-            f"[INSTALLMENT_SVC] create_future_installments: series_id={series.id}, "
-            f"first_installment_date={series.first_installment_date}, "
-            f"from_installment={from_installment}, total={series.installment_count}, "
-            f"current_invoice={current_invoice_month}/{current_invoice_year}"
-        )
-
         # Buscar cartão de crédito se houver
         credit_card = None
         invoice_service = None
@@ -699,10 +664,6 @@ class InstallmentService:
                 from app.modules.credit_cards.services.invoice_service import InvoiceService
 
                 invoice_service = InvoiceService(self.db)
-                print(
-                    f"[INSTALLMENT_SVC] Card: closing_day={credit_card.closing_day}, "
-                    f"due_day={credit_card.due_day}"
-                )
 
         for i in range(from_installment + 1, series.installment_count + 1):
             existing = await self.find_existing_installment(series, i)
@@ -711,9 +672,6 @@ class InstallmentService:
 
             # Calcular data estimada da parcela (para registro)
             estimated_date = series.first_installment_date + relativedelta(months=i - 1)
-            print(
-                f"[INSTALLMENT_SVC] Parcela {i}/{series.installment_count}: estimated_date={estimated_date}"
-            )
 
             # Se tem cartão de crédito, obter/criar fatura para o período
             invoice_id = None
@@ -726,11 +684,6 @@ class InstallmentService:
                     future_date = base_date + relativedelta(months=months_offset)
                     ref_month = future_date.month
                     ref_year = future_date.year
-
-                    print(
-                        f"[INSTALLMENT_SVC] Parcela {i}: usando fatura atual + {months_offset} meses "
-                        f"-> ({ref_month}/{ref_year})"
-                    )
 
                     # Calcular datas de fechamento/vencimento para o mês
                     dates = invoice_service.calculate_invoice_dates(
@@ -748,10 +701,6 @@ class InstallmentService:
                 else:
                     # Fallback: calcular pelo período baseado na data (comportamento antigo)
                     period = invoice_service.calculate_invoice_period(credit_card, estimated_date)
-                    print(
-                        f"[INSTALLMENT_SVC] Parcela {i}: usando calculate_invoice_period "
-                        f"-> ({period['reference_month']}/{period['reference_year']})"
-                    )
                     invoice = await invoice_service.get_or_create_invoice(
                         user=user,
                         credit_card=credit_card,
@@ -762,7 +711,6 @@ class InstallmentService:
                     )
 
                 invoice_id = invoice.id
-                print(f"[INSTALLMENT_SVC] Parcela {i} -> invoice_id={invoice_id}")
 
             transaction = Transaction(
                 user_id=user.id,

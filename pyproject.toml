@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = ["live: tests that call external AI APIs and require explicit opt-in"]
 
 [tool.ruff]
 line-length = 100
@@ -15,6 +16,7 @@ extend-exclude = ["docs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]
+extend-select = ["T201"]
 ignore = [
     "E501",  # linhas longas: line-length=100 ja cobre o razoavel
     "E711",  # == None em filtros SQLAlchemy e operador sobrecarregado — nao trocar por "is"
@@ -24,5 +26,6 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"!app/**" = ["T201"]  # print permitido somente fora do codigo de aplicacao
 "**/__init__.py" = ["F401"]   # barrels re-exportam simbolos
 "app/models/*.py" = ["F821"]  # forward references (strings) em relationships SQLAlchemy

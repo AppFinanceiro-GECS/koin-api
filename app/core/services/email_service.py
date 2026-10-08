@@ -1,5 +1,6 @@
 """Serviço de envio de emails via SMTP"""
 
+import logging
 import smtplib
 import ssl
 from email.mime.multipart import MIMEMultipart
@@ -9,6 +10,9 @@ from email.utils import formatdate, make_msgid
 from ..config import settings
 
 # Template base para emails
+logger = logging.getLogger(__name__)
+
+
 EMAIL_BASE_STYLE = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -186,7 +190,7 @@ class EmailService:
     ) -> bool:
         """Envia email HTML com cabeçalhos para melhor entregabilidade"""
         if not self.user or not self.password:
-            print("SMTP não configurado - email não enviado")
+            logger.info("SMTP não configurado - email não enviado")
             return False
 
         try:
@@ -214,7 +218,7 @@ class EmailService:
 
             return True
         except Exception as e:
-            print(f"Erro ao enviar email: {e}")
+            logger.error("send_email_failed error_type=%s", type(e).__name__)
             return False
 
     def send_invitation(self, to_email: str, invite_url: str, inviter_name: str) -> bool:

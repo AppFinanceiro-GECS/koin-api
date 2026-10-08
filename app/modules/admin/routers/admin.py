@@ -1,7 +1,10 @@
+import logging
 import secrets
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import delete, func, select
 
 from app.core.config import settings
@@ -10,6 +13,7 @@ from app.core.security import get_password_hash
 from app.core.services.email_service import email_service
 from app.core.utils import utc_now
 from app.models import Invitation, InvitationStatus, License, LicenseStatus, User
+from app.models.ai_usage import AIUsage
 from app.models.household import HouseholdMember, HouseholdRole
 from app.modules.admin.schemas.admin import (
     AdminDashboard,
@@ -25,6 +29,9 @@ from app.modules.admin.schemas.admin import (
 from app.modules.auth.schemas.invitation import InvitationCreate, InvitationListResponse
 from app.modules.auth.services.user_setup import setup_new_user
 
+logger = logging.getLogger(__name__)
+
+
 router = APIRouter()
 
 # Constantes de seguranca
@@ -38,6 +45,69 @@ def require_admin(user: User):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso negado. Apenas administradores podem acessar.",
         )
+
+
+@router.get("/ai-usage")
+async def get_ai_usage(
+    current_user: CurrentUser,
+    db: DbSession,
+    from_: datetime | None = Query(None, alias="from"),
+    to: datetime | None = None,
+    group_by: Literal["user", "feature", "model"] = "user",
+    document_id: int | None = Query(None, ge=1),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+):
+    """USD calculado dos metadados do provider; intervalo UTC [from, to)."""
+    require_admin(current_user)
+
+    def utc_naive(value):
+        return value.astimezone(UTC).replace(tzinfo=None) if value.tzinfo else value
+
+    end = utc_naive(to) if to else utc_now()
+    start = utc_naive(from_) if from_ else end - timedelta(days=30)
+    if start >= end:
+        raise HTTPException(422, "from deve ser anterior a to")
+    keys = {
+        "user": [AIUsage.user_id],
+        "feature": [AIUsage.feature],
+        "model": [AIUsage.provider, AIUsage.model],
+    }[group_by]
+    query = select(
+        *keys,
+        func.count(AIUsage.id).label("calls"),
+        func.count(func.distinct(AIUsage.document_id)).label("documents"),
+        func.count(AIUsage.cost_usd).label("measured_calls"),
+        func.sum(AIUsage.cost_usd).label("measured_cost_usd"),
+        func.sum(AIUsage.input_tokens).label("input_tokens"),
+        func.sum(AIUsage.output_tokens).label("output_tokens"),
+        func.sum(AIUsage.thinking_tokens).label("thinking_tokens"),
+        func.sum(AIUsage.pages).label("pages"),
+        func.sum(AIUsage.latency_ms).label("latency_ms"),
+    ).where(AIUsage.created_at >= start, AIUsage.created_at < end)
+    if document_id is not None:
+        query = query.where(AIUsage.document_id == document_id)
+    result = await db.execute(query.group_by(*keys).order_by(*keys).offset(offset).limit(limit))
+    items = []
+    for row in result.mappings():
+        item = dict(row)
+        item["unmeasured_calls"] = item["calls"] - item["measured_calls"]
+        item["measured_cost_usd"] = item["measured_cost_usd"] or Decimal("0")
+        item["cost_usd"] = item["measured_cost_usd"] if item["unmeasured_calls"] == 0 else None
+        item["avg_cost_per_document_usd"] = (
+            item["cost_usd"] / item["documents"]
+            if item["cost_usd"] is not None and item["documents"]
+            else None
+        )
+        items.append(item)
+    return {
+        "from": start,
+        "to": end,
+        "group_by": group_by,
+        "items": items,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 # ========== Dashboard ==========
@@ -348,7 +418,7 @@ async def create_license(
     )
 
     if not email_sent:
-        print(f"Aviso: Email nao enviado para {data.owner_email}")
+        logger.warning("email_delivery_failed")
 
     return LicenseResponse(
         id=license.id,
@@ -649,7 +719,7 @@ async def create_user(
     )
 
     if not email_sent:
-        print(f"Aviso: Email nao enviado para {data.email}")
+        logger.warning("email_delivery_failed")
 
     # Return placeholder response (user will be created when invitation is accepted)
     return UserAdminResponse(
@@ -883,7 +953,7 @@ async def create_invitation(
 
     if not email_sent:
         # Log mas nao falha - convite foi criado
-        print(f"Aviso: Email nao enviado para {data.email}")
+        logger.warning("email_delivery_failed")
 
     return InvitationListResponse(
         id=invitation.id,
