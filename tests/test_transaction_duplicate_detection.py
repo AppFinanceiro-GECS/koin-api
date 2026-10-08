@@ -1,8 +1,10 @@
 """Testes para detecção de duplicatas em transações individuais"""
 
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock
+
+UTC = timezone.utc  # noqa: UP017
 
 import pytest
 

@@ -5,19 +5,20 @@ Revises: restore_indexes_fks
 Create Date: 2026-10-07 19:05:42.841461
 
 """
-from typing import Sequence, Union
-from datetime import date
-from dateutil.relativedelta import relativedelta
 
-from alembic import op
-import sqlalchemy as sa
+from collections.abc import Sequence
+from datetime import date
+
+from dateutil.relativedelta import relativedelta
 from sqlalchemy.sql import text
 
+from alembic import op
+
 # revision identifiers, used by Alembic.
-revision: str = '3a82572f6835'
-down_revision: Union[str, None] = 'restore_indexes_fks'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "3a82572f6835"
+down_revision: str | None = "restore_indexes_fks"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def calculate_invoice_period(closing_day: int, due_day: int, reference_date: date) -> dict:
@@ -58,7 +59,7 @@ def calculate_invoice_period(closing_day: int, due_day: int, reference_date: dat
 def upgrade() -> None:
     # A conexão com o banco é fornecida nativamente pelo Alembic
     conn = op.get_bind()
-    
+
     # 1. Verificar pendências
     result = conn.execute(
         text("""
@@ -92,11 +93,11 @@ def upgrade() -> None:
 
     for row in transactions:
         t_id, user_id, card_id, t_date, amount, closing_day, due_day = row
-        
+
         # Converte strings para date se necessário
         if isinstance(t_date, str):
             t_date = date.fromisoformat(t_date.split(" ")[0])
-            
+
         period = calculate_invoice_period(closing_day, due_day, t_date)
         cache_key = (card_id, period["reference_month"], period["reference_year"])
 
@@ -168,7 +169,9 @@ def upgrade() -> None:
         """)
     )
 
-    print(f"Migração concluída: {len(transactions)} transações migradas em {len(invoice_cache)} faturas.")
+    print(
+        f"Migração concluída: {len(transactions)} transações migradas em {len(invoice_cache)} faturas."
+    )
     invoice_cache.clear()
 
 
