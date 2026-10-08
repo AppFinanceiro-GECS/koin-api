@@ -5,6 +5,7 @@ import io
 import logging
 from pathlib import Path
 
+from app.core.ai_usage import AIUnavailable, tracked_call
 from app.core.config import settings
 
 from ..document_classifier import DocumentClassifier, DocumentType
@@ -644,13 +645,21 @@ class MistralProvider(BaseProvider):
         logger.info("[MistralProvider] Trying document_annotation (single-call extraction)...")
 
         try:
-            ocr_response = await asyncio.to_thread(
-                self._ocr_with_annotation_sync,
-                client,
-                uploaded_file.id,
-                annotation_format,
-                annotation_prompt,
+            ocr_response = await tracked_call(
+                "mistral",
+                settings.mistral_ocr_model,
+                lambda: asyncio.to_thread(
+                    self._ocr_with_annotation_sync,
+                    client,
+                    uploaded_file.id,
+                    annotation_format,
+                    annotation_prompt,
+                ),
+                feature="ocr",
+                billing_mode="annotation",
             )
+        except AIUnavailable:
+            raise
         except Exception as e:
             logger.error("_try_annotation_extraction_failed error_type=%s", type(e).__name__)
             return None, ""
@@ -761,7 +770,12 @@ class MistralProvider(BaseProvider):
                 logger.info(
                     "[MistralProvider] Annotation didn't return OCR text, doing separate OCR (reusing file_id)..."
                 )
-                ocr_response = await asyncio.to_thread(self._ocr_sync, client, uploaded_file.id)
+                ocr_response = await tracked_call(
+                    "mistral",
+                    settings.mistral_ocr_model,
+                    lambda: asyncio.to_thread(self._ocr_sync, client, uploaded_file.id),
+                    feature="ocr",
+                )
                 if hasattr(ocr_response, "pages"):
                     for page in ocr_response.pages:
                         if hasattr(page, "markdown"):
@@ -795,7 +809,11 @@ class MistralProvider(BaseProvider):
             last_error = None
             for attempt in range(self.max_retries):
                 try:
-                    chat_response = await asyncio.to_thread(self._chat_sync, client, full_prompt)
+                    chat_response = await tracked_call(
+                        "mistral",
+                        settings.mistral_llm_model,
+                        lambda: asyncio.to_thread(self._chat_sync, client, full_prompt),
+                    )
 
                     response_text = chat_response.choices[0].message.content
                     logger.info("[MistralProvider] LLM retornou %s caracteres", len(response_text))
@@ -820,6 +838,9 @@ class MistralProvider(BaseProvider):
                         return best
 
                     return llm_result
+
+                except AIUnavailable:
+                    raise
 
                 except Exception as e:
                     last_error = e
@@ -852,6 +873,9 @@ class MistralProvider(BaseProvider):
                 return annotation_result
 
             return {"items": [], "error": f"Falha apos {self.max_retries} tentativas: {last_error}"}
+
+        except AIUnavailable:
+            raise
 
         except Exception as e:
             logger.error("extract_from_pdf_failed error_type=%s", type(e).__name__)
@@ -993,7 +1017,11 @@ class MistralProvider(BaseProvider):
         retry_result = None
 
         try:
-            retry_response = await asyncio.to_thread(self._chat_sync, client, retry_prompt)
+            retry_response = await tracked_call(
+                "mistral",
+                settings.mistral_llm_model,
+                lambda: asyncio.to_thread(self._chat_sync, client, retry_prompt),
+            )
             retry_text = retry_response.choices[0].message.content
             logger.info("[MistralProvider] Retry LLM retornou %s caracteres", len(retry_text))
 
@@ -1014,6 +1042,8 @@ class MistralProvider(BaseProvider):
                         ocr_text[:500] + "..." if len(ocr_text) > 500 else ocr_text
                     )
                     return retry_result
+        except AIUnavailable:
+            raise
         except Exception as e:
             logger.error("_retry_if_sum_mismatch_failed error_type=%s", type(e).__name__)
 

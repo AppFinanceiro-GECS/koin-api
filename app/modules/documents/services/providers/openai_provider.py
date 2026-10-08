@@ -3,6 +3,7 @@
 import asyncio
 import base64
 
+from app.core.ai_usage import AIUnavailable, tracked_call
 from app.core.config import settings
 
 from .base import BaseProvider
@@ -35,30 +36,34 @@ class OpenAIProvider(BaseProvider):
         for attempt in range(self.max_retries):
             try:
                 async with httpx.AsyncClient(timeout=60.0) as client:
-                    response = await client.post(
-                        "https://api.openai.com/v1/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {api_key}",
-                            "Content-Type": "application/json",
-                        },
-                        json={
-                            "model": self.model,
-                            "messages": [
-                                {
-                                    "role": "user",
-                                    "content": [
-                                        {"type": "text", "text": self.prompt},
-                                        {
-                                            "type": "image_url",
-                                            "image_url": {
-                                                "url": f"data:{mime_type};base64,{image_base64}",
+                    response = await tracked_call(
+                        "openai",
+                        self.model,
+                        lambda: client.post(
+                            "https://api.openai.com/v1/chat/completions",
+                            headers={
+                                "Authorization": f"Bearer {api_key}",
+                                "Content-Type": "application/json",
+                            },
+                            json={
+                                "model": self.model,
+                                "messages": [
+                                    {
+                                        "role": "user",
+                                        "content": [
+                                            {"type": "text", "text": self.prompt},
+                                            {
+                                                "type": "image_url",
+                                                "image_url": {
+                                                    "url": f"data:{mime_type};base64,{image_base64}",
+                                                },
                                             },
-                                        },
-                                    ],
-                                }
-                            ],
-                            "max_tokens": 4000,
-                        },
+                                        ],
+                                    }
+                                ],
+                                "max_tokens": 4000,
+                            },
+                        ),
                     )
 
                     if response.status_code != 200:
@@ -70,6 +75,9 @@ class OpenAIProvider(BaseProvider):
                     result = response.json()
                     content = result["choices"][0]["message"]["content"]
                     return self._parse_response(content)
+
+            except AIUnavailable:
+                raise
 
             except Exception as e:
                 last_error = e

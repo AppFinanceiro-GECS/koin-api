@@ -1,5 +1,7 @@
+from decimal import Decimal
 from functools import lru_cache
 
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -41,6 +43,15 @@ class Settings(BaseSettings):
     # Trocar de modelo é só mudar a variável de ambiente; nenhum outro lugar do código fixa o nome.
     vision_model: str = "gemini-3.5-flash-lite"  # extração de faturas e cupons (imagem/PDF)
     classifier_model: str = "gemini-3.5-flash-lite"  # tipo de documento e intenção do chat
+
+    ai_prices_file: str = "config/ai_prices.json"
+    ai_daily_budget_usd: Decimal | None = Field(default=None, ge=0)
+    ai_call_reservation_usd: Decimal = Field(default=Decimal("0.10"), gt=0)
+
+    @field_validator("ai_daily_budget_usd", mode="before")
+    @classmethod
+    def empty_daily_budget(cls, value):
+        return None if value == "" else value
 
     # Mistral AI (melhor custo-benefício para OCR de faturas)
     mistral_api_key: str | None = None

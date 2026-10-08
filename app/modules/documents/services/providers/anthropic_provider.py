@@ -3,6 +3,7 @@
 import asyncio
 import base64
 
+from app.core.ai_usage import AIUnavailable, tracked_call
 from app.core.config import settings
 
 from .base import BaseProvider
@@ -35,33 +36,37 @@ class AnthropicProvider(BaseProvider):
         for attempt in range(self.max_retries):
             try:
                 async with httpx.AsyncClient(timeout=60.0) as client:
-                    response = await client.post(
-                        "https://api.anthropic.com/v1/messages",
-                        headers={
-                            "x-api-key": api_key,
-                            "anthropic-version": "2023-06-01",
-                            "Content-Type": "application/json",
-                        },
-                        json={
-                            "model": self.model,
-                            "max_tokens": 4000,
-                            "messages": [
-                                {
-                                    "role": "user",
-                                    "content": [
-                                        {
-                                            "type": "image",
-                                            "source": {
-                                                "type": "base64",
-                                                "media_type": mime_type,
-                                                "data": image_base64,
+                    response = await tracked_call(
+                        "anthropic",
+                        self.model,
+                        lambda: client.post(
+                            "https://api.anthropic.com/v1/messages",
+                            headers={
+                                "x-api-key": api_key,
+                                "anthropic-version": "2023-06-01",
+                                "Content-Type": "application/json",
+                            },
+                            json={
+                                "model": self.model,
+                                "max_tokens": 4000,
+                                "messages": [
+                                    {
+                                        "role": "user",
+                                        "content": [
+                                            {
+                                                "type": "image",
+                                                "source": {
+                                                    "type": "base64",
+                                                    "media_type": mime_type,
+                                                    "data": image_base64,
+                                                },
                                             },
-                                        },
-                                        {"type": "text", "text": self.prompt},
-                                    ],
-                                }
-                            ],
-                        },
+                                            {"type": "text", "text": self.prompt},
+                                        ],
+                                    }
+                                ],
+                            },
+                        ),
                     )
 
                     if response.status_code != 200:
@@ -73,6 +78,9 @@ class AnthropicProvider(BaseProvider):
                     result = response.json()
                     content = result["content"][0]["text"]
                     return self._parse_response(content)
+
+            except AIUnavailable:
+                raise
 
             except Exception as e:
                 last_error = e

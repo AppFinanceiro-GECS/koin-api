@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.ai_usage import AIUnavailable, metered, reserve_document, usage_context
 from app.core.config import settings
 from app.core.database import async_session_maker
 from app.core.utils import utc_now
@@ -115,9 +116,10 @@ async def process_document_background(
             else:
                 llm_service = LLMOCRService(provider="google", model=settings.vision_model)
 
-            extraction_data = await llm_service.extract_from_image(
-                file_bytes, mime_type, filename=filename, password=password
-            )
+            with usage_context(db, user_id, document_id):
+                extraction_data = await llm_service.extract_from_image(
+                    file_bytes, mime_type, filename=filename, password=password
+                )
 
             # Verificar se houve erro
             if extraction_data is None or extraction_data.get("error"):
@@ -313,6 +315,7 @@ class DocumentService:
         # Calcular hash para dedupe
         file_hash = hashlib.sha256(content).hexdigest()
         existing_document = await self._resolve_duplicate(user, file_hash, force)
+        await reserve_document(self.db, user)
 
         # Salvar arquivo
         upload_dir = Path(settings.upload_dir) / str(user.id)
@@ -431,6 +434,7 @@ class DocumentService:
         # Calcular hash para dedupe
         file_hash = hashlib.sha256(content).hexdigest()
         existing_document = await self._resolve_duplicate(user, file_hash, force)
+        await reserve_document(self.db, user)
         is_duplicate = existing_document is not None
 
         # Salvar arquivo
@@ -678,6 +682,7 @@ class DocumentService:
         # Calcular hash combinado para dedupe
         file_hash = hashlib.sha256(combined_hash_data).hexdigest()
         existing_document = await self._resolve_duplicate(user, file_hash, force)
+        await reserve_document(self.db, user)
         is_duplicate = existing_document is not None
 
         # Salvar primeira imagem como referencia
@@ -883,6 +888,7 @@ class DocumentService:
         jpeg_content = await asyncio.to_thread(_convert)
         return jpeg_content, "image/jpeg"
 
+    @metered("extraction", document_arg="document")
     async def _process_batch_images(
         self, document: Document, images: list[tuple[bytes, str]]
     ) -> dict | None:
@@ -932,6 +938,9 @@ class DocumentService:
             await self.db.refresh(document)
 
             return result
+
+        except AIUnavailable:
+            raise
 
         except Exception as e:
             logger.error(
@@ -988,6 +997,8 @@ class DocumentService:
                     "Exclua o documento e envie o arquivo novamente.",
                 },
             )
+
+        await reserve_document(self.db, user)
 
         # Ler arquivo em thread separada para nao bloquear o event loop
         content = await asyncio.to_thread(_read_file_sync, document.file_path)
@@ -1053,6 +1064,9 @@ class DocumentService:
 
             return extraction_data
 
+        except AIUnavailable:
+            raise
+
         except Exception as e:
             logger.error(
                 "document_processing_failed document_id=%s error_type=%s",
@@ -1066,6 +1080,7 @@ class DocumentService:
             await self.db.refresh(document)
             return None
 
+    @metered("extraction", document_arg="document")
     async def _extract_data(
         self, document: Document, content: bytes, password: str | None = None
     ) -> dict | None:

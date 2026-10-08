@@ -14,6 +14,8 @@ import asyncio
 import logging
 from enum import Enum
 
+from app.core.ai_usage import AIUnavailable, tracked_call
+
 logger = logging.getLogger(__name__)
 
 
@@ -373,7 +375,12 @@ class DocumentClassifier:
                     },
                 )
 
-            response = await asyncio.to_thread(_call_gemini)
+            response = await tracked_call(
+                "google",
+                settings.classifier_model,
+                lambda: asyncio.to_thread(_call_gemini),
+                feature="classification",
+            )
             result = response.text.strip().lower()
 
             # Parsear resposta
@@ -389,6 +396,8 @@ class DocumentClassifier:
         except ImportError:
             logger.info("[Classifier] google-genai nao instalado, pulando LLM")
             return DocumentType.UNKNOWN
+        except AIUnavailable:
+            raise
         except Exception as e:
             logger.error("_classify_by_llm_failed error_type=%s", type(e).__name__)
             return DocumentType.UNKNOWN
