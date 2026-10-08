@@ -11,6 +11,7 @@ Este modulo foi refatorado para seguir Clean Code:
 import logging
 from pathlib import Path
 
+from app.core.ai_usage import AIUnavailable
 from app.core.config import settings
 
 from .document_classifier import DocumentClassifier
@@ -125,6 +126,8 @@ class LLMOCRService:
                 logger.info("[LLM_OCR] Processing PDF via %s", self.provider_name)
                 try:
                     result = await provider.extract_from_pdf(image_content, filename, password)
+                except AIUnavailable:
+                    raise
                 except Exception as primary_err:
                     # Primary provider failed — try fallback before giving up
                     logger.error(
@@ -179,6 +182,8 @@ class LLMOCRService:
                                 result = retry_result
                             else:
                                 logger.info("[LLM_OCR] Fallback also returned 0 items or error")
+                        except AIUnavailable:
+                            raise
                         except Exception as retry_err:
                             logger.error(
                                 "extract_from_image_failed error_type=%s", type(retry_err).__name__
@@ -216,6 +221,9 @@ class LLMOCRService:
                         logger.warning("document_validation_failed status=sum_mismatch")
 
             return result
+
+        except AIUnavailable:
+            raise
 
         except Exception as e:
             logger.error("extract_from_image_failed error_type=%s", type(e).__name__)
@@ -281,6 +289,8 @@ class LLMOCRService:
             count = len(doc)
             doc.close()
             return count
+        except AIUnavailable:
+            raise
         except Exception:
             return 0
 
@@ -598,6 +608,9 @@ class LLMOCRService:
                         logger.warning("document_validation_failed")
 
             return result
+
+        except AIUnavailable:
+            raise
 
         except Exception as e:
             logger.error("extract_from_multiple_images_failed error_type=%s", type(e).__name__)

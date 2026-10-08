@@ -6,6 +6,7 @@ import logging
 import os
 import tempfile
 
+from app.core.ai_usage import AIUnavailable, tracked_call
 from app.core.config import settings
 
 from .base import BaseProvider
@@ -140,10 +141,17 @@ class GoogleProvider(BaseProvider):
         for attempt in range(self.max_retries):
             try:
                 # Executa em thread separada para nao bloquear o event loop
-                response = await asyncio.to_thread(
-                    self._generate_content_sync, client, self.model, contents, config
+                response = await tracked_call(
+                    "google",
+                    self.model,
+                    lambda: asyncio.to_thread(
+                        self._generate_content_sync, client, self.model, contents, config
+                    ),
                 )
                 return self._parse_response(response.text)
+
+            except AIUnavailable:
+                raise
 
             except Exception as e:
                 last_error = e
@@ -187,6 +195,8 @@ class GoogleProvider(BaseProvider):
                 native_banks = ["banco itau", "itaú", "itau unibanco", "financeira itau cbd"]
                 if any(ind in quick_lower for ind in native_banks):
                     use_native = True
+            except AIUnavailable:
+                raise
             except Exception:
                 pass
 
@@ -220,6 +230,8 @@ class GoogleProvider(BaseProvider):
                 try:
                     ocr_text = PDFTextExtractor.extract_text_with_layout(pdf_bytes, password)
                     bank_name = self._detect_bank(ocr_text)
+                except AIUnavailable:
+                    raise
                 except Exception:
                     bank_name = None
 
@@ -304,12 +316,19 @@ NÃO retorne apenas um array! Retorne um objeto completo."""
                         self.max_retries,
                     )
                     # Executa em thread separada para nao bloquear o event loop
-                    response = await asyncio.to_thread(
-                        self._generate_content_sync, client, self.model, contents, config
+                    response = await tracked_call(
+                        "google",
+                        self.model,
+                        lambda: asyncio.to_thread(
+                            self._generate_content_sync, client, self.model, contents, config
+                        ),
                     )
 
                     response_text = response.text if response else ""
                     return self._parse_response(response_text)
+
+                except AIUnavailable:
+                    raise
 
                 except Exception as e:
                     last_error = e
@@ -364,12 +383,19 @@ NÃO retorne apenas um array! Retorne um objeto completo."""
                     self.max_retries,
                 )
                 # Executa em thread separada para nao bloquear o event loop
-                response = await asyncio.to_thread(
-                    self._generate_content_sync, client, self.model, parts, config
+                response = await tracked_call(
+                    "google",
+                    self.model,
+                    lambda: asyncio.to_thread(
+                        self._generate_content_sync, client, self.model, parts, config
+                    ),
                 )
 
                 response_text = response.text if response else ""
                 return self._parse_response(response_text)
+
+            except AIUnavailable:
+                raise
 
             except Exception as e:
                 last_error = e
@@ -398,31 +424,35 @@ NÃO retorne apenas um array! Retorne um objeto completo."""
         for attempt in range(self.max_retries):
             try:
                 async with httpx.AsyncClient(timeout=60.0) as client:
-                    response = await client.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
-                        headers={
-                            "x-goog-api-key": api_key,
-                            "Content-Type": "application/json",
-                        },
-                        json={
-                            "contents": [
-                                {
-                                    "parts": [
-                                        {"text": self.prompt},
-                                        {
-                                            "inline_data": {
-                                                "mime_type": mime_type,
-                                                "data": image_base64,
-                                            }
-                                        },
-                                    ]
-                                }
-                            ],
-                            "generationConfig": {
-                                "temperature": 0.1,
-                                "maxOutputTokens": 16000,
+                    response = await tracked_call(
+                        "google",
+                        self.model,
+                        lambda: client.post(
+                            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
+                            headers={
+                                "x-goog-api-key": api_key,
+                                "Content-Type": "application/json",
                             },
-                        },
+                            json={
+                                "contents": [
+                                    {
+                                        "parts": [
+                                            {"text": self.prompt},
+                                            {
+                                                "inline_data": {
+                                                    "mime_type": mime_type,
+                                                    "data": image_base64,
+                                                }
+                                            },
+                                        ]
+                                    }
+                                ],
+                                "generationConfig": {
+                                    "temperature": 0.1,
+                                    "maxOutputTokens": 16000,
+                                },
+                            },
+                        ),
                     )
 
                     if response.status_code != 200:
@@ -434,6 +464,9 @@ NÃO retorne apenas um array! Retorne um objeto completo."""
                     result = response.json()
                     content = result["candidates"][0]["content"]["parts"][0]["text"]
                     return self._parse_response(content)
+
+            except AIUnavailable:
+                raise
 
             except Exception as e:
                 last_error = e
@@ -477,19 +510,23 @@ NÃO retorne apenas um array! Retorne um objeto completo."""
         for attempt in range(self.max_retries):
             try:
                 async with httpx.AsyncClient(timeout=120.0) as client:
-                    response = await client.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
-                        headers={
-                            "x-goog-api-key": api_key,
-                            "Content-Type": "application/json",
-                        },
-                        json={
-                            "contents": [{"parts": parts}],
-                            "generationConfig": {
-                                "temperature": 0.1,
-                                "maxOutputTokens": 32000,
+                    response = await tracked_call(
+                        "google",
+                        self.model,
+                        lambda: client.post(
+                            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
+                            headers={
+                                "x-goog-api-key": api_key,
+                                "Content-Type": "application/json",
                             },
-                        },
+                            json={
+                                "contents": [{"parts": parts}],
+                                "generationConfig": {
+                                    "temperature": 0.1,
+                                    "maxOutputTokens": 32000,
+                                },
+                            },
+                        ),
                     )
 
                     if response.status_code != 200:
@@ -504,6 +541,9 @@ NÃO retorne apenas um array! Retorne um objeto completo."""
 
                     content = result["candidates"][0]["content"]["parts"][0]["text"]
                     return self._parse_response(content)
+
+            except AIUnavailable:
+                raise
 
             except Exception as e:
                 last_error = e

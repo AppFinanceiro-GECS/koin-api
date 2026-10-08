@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.ai_usage import AIUnavailable, metered, tracked_call
 from app.core.config import settings
 from app.models.grocery import (
     GroceryCategory,
@@ -71,6 +72,7 @@ class SmartListService:
                 raise ImportError("mistralai nao instalado. Execute: pip install mistralai")
         return self._mistral_client
 
+    @metered("smart_list")
     async def generate_smart_list(
         self, user: User, request: SmartListGenerateRequest
     ) -> SmartListFullResponse:
@@ -226,6 +228,8 @@ class SmartListService:
 
         try:
             client = self._get_mistral_client()
+        except AIUnavailable:
+            raise
         except Exception as e:
             logger.error("_call_mistral_failed error_type=%s", type(e).__name__)
             return None
@@ -239,7 +243,11 @@ class SmartListService:
                 )
 
                 # Executa em thread separada para nao bloquear o event loop
-                response = await asyncio.to_thread(self._mistral_chat_sync, client, model, prompt)
+                response = await tracked_call(
+                    "mistral",
+                    model,
+                    lambda: asyncio.to_thread(self._mistral_chat_sync, client, model, prompt),
+                )
 
                 response_text = response.choices[0].message.content if response.choices else ""
 
@@ -248,6 +256,9 @@ class SmartListService:
                     continue
 
                 return self._parse_llm_response(response_text)
+
+            except AIUnavailable:
+                raise
 
             except Exception as e:
                 error_str = str(e).lower()
@@ -286,6 +297,8 @@ class SmartListService:
 
         try:
             client = self._get_gemini_client()
+        except AIUnavailable:
+            raise
         except Exception as e:
             logger.error("_call_gemini_failed error_type=%s", type(e).__name__)
             return None
@@ -307,8 +320,12 @@ class SmartListService:
                     )
 
                     # Executa em thread separada para nao bloquear o event loop
-                    response = await asyncio.to_thread(
-                        self._gemini_generate_sync, client, model, prompt, config
+                    response = await tracked_call(
+                        "google",
+                        model,
+                        lambda: asyncio.to_thread(
+                            self._gemini_generate_sync, client, model, prompt, config
+                        ),
                     )
 
                     response_text = response.text if response else ""
@@ -324,6 +341,9 @@ class SmartListService:
                         continue
 
                     return self._parse_llm_response(response_text)
+
+                except AIUnavailable:
+                    raise
 
                 except Exception as e:
                     error_str = str(e).lower()
@@ -448,6 +468,9 @@ class SmartListService:
                 }
 
             return None
+
+        except AIUnavailable:
+            raise
 
         except Exception as e:
             logger.error("_try_repair_truncated_json_failed error_type=%s", type(e).__name__)
