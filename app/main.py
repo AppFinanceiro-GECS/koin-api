@@ -52,7 +52,6 @@ async def lifespan(app: FastAPI):
         async with engine.begin():
             pass
     except Exception as e:
-        # Substituído print() por logger.error()
         logger.error(f"Conexão inicial com banco falhou: {e}")
 
     # Start APScheduler
@@ -60,7 +59,6 @@ async def lifespan(app: FastAPI):
         await start_scheduler()
         logger.info("Scheduler iniciado com sucesso.")
     except Exception as e:
-        # Substituído print() por logger.error()
         logger.error(f"Scheduler não iniciou: {e}")
 
     yield
