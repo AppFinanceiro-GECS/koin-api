@@ -1,6 +1,8 @@
 """Testes para hard rules de detecção de duplicatas"""
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+
+UTC = timezone.utc  # noqa: UP017
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock
 

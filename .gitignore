@@ -43,3 +43,4 @@ Thumbs.db
 # Agentes
 .claude/
 .codex/
+venv/

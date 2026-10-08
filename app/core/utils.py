@@ -1,6 +1,8 @@
 """Utility functions for the application."""
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+
+UTC = timezone.utc  # noqa: UP017
 
 
 def utc_now() -> datetime:
