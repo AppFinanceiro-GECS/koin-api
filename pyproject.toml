@@ -2,16 +2,17 @@
 name = "app-financeiro-backend"
 version = "0.1.0"
 description = "App de controle financeiro pessoal inteligente"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 markers = ["live: tests that call external AI APIs and require explicit opt-in"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 extend-exclude = ["docs"]
 
 [tool.ruff.lint]

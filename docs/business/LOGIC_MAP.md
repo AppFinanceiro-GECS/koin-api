@@ -46,7 +46,7 @@ koin-app/
 | **Backend** | FastAPI 0.109 | Framework REST |
 | | SQLAlchemy 2.0 (async) | ORM |
 | | Pydantic 2.6 | Validação/Schemas |
-| | python-jose + bcrypt | JWT Auth |
+| | PyJWT + bcrypt | JWT Auth |
 | | Google Gemini API | OCR/Vision |
 | | Alembic | Migrations |
 | **Frontend** | React 18 + TypeScript | UI Framework |

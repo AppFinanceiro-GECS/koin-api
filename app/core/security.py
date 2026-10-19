@@ -1,18 +1,21 @@
 import hashlib
 import re
 import secrets
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import bcrypt
+import jwt
 from fastapi import HTTPException, status
-from jose import jwt
-from passlib.context import CryptContext
 
 from app.core.utils import utc_now
 
 from .config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt só considera os primeiros 72 bytes. O passlib cortava em silêncio;
+# o bcrypt 5 recusa a senha inteira, então o corte fica aqui para os hashes
+# já gravados continuarem válidos.
+_BCRYPT_MAX_BYTES = 72
 
 
 # Common passwords list (basic list - can be expanded)
@@ -144,35 +147,47 @@ def validate_password_or_raise(password: str) -> None:
         )
 
 
+def _exp_timestamp(expire: datetime) -> int:
+    if expire.tzinfo is None:
+        expire = expire.replace(tzinfo=UTC)
+    return int(expire.timestamp())
+
+
+def _bcrypt_password(password: str) -> bytes:
+    return password.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+
+
 def create_access_token(subject: str | Any, expires_delta: timedelta | None = None) -> str:
     if expires_delta:
         expire = utc_now() + expires_delta
     else:
         expire = utc_now() + timedelta(minutes=settings.access_token_expire_minutes)
 
-    to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
+    to_encode = {"exp": _exp_timestamp(expire), "sub": str(subject), "type": "access"}
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
 
 
 def create_refresh_token(subject: str | Any) -> str:
     expire = utc_now() + timedelta(days=settings.refresh_token_expire_days)
-    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    to_encode = {"exp": _exp_timestamp(expire), "sub": str(subject), "type": "refresh"}
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(_bcrypt_password(plain_password), hashed_password.encode("utf-8"))
+    except (ValueError, TypeError):
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(_bcrypt_password(password), bcrypt.gensalt()).decode("utf-8")
 
 
 def decode_token(token: str) -> dict | None:
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-        return payload
-    except jwt.JWTError:
+        return jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+    except jwt.PyJWTError:
         return None
 
 
