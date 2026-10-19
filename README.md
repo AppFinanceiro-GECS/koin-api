@@ -56,7 +56,7 @@ A cada push, o CI publica a imagem em `ghcr.io/appfinanceiro-gecs/koin-api`: da 
 ## Desenvolvimento sem Docker
 
 ```bash
-make install     # venv + dependências (Python 3.11+)
+make install     # venv + dependências (Python 3.12+)
 make dev         # alembic upgrade head + uvicorn --reload (SQLite por padrão)
 make lint test   # o mesmo que o CI cobra
 ```
@@ -84,7 +84,7 @@ docs/            infra, arquitetura, módulos, regras de negócio, onboarding
 
 | | |
 |---|---|
-| API | Python 3.11, FastAPI, Pydantic v2, SQLAlchemy 2 (async), Alembic |
+| API | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (async), Alembic |
 | Banco | PostgreSQL 16 (Docker/produção), SQLite (dev local e testes) |
 | Auth | JWT (access + refresh) e API Keys |
 | IA | Google Gemini (padrão) ou Mistral para extração de documentos e chat |

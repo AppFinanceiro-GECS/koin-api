@@ -7,12 +7,12 @@ API REST de gestao financeira pessoal construida com FastAPI, SQLAlchemy e Postg
 | Tecnologia | Versao | Proposito |
 |------------|--------|-----------|
 | Python | 3.12 | Linguagem |
-| FastAPI | 0.109 | Framework web |
+| FastAPI | 0.148 | Framework web |
 | SQLAlchemy | 2.0 | ORM (async) |
 | PostgreSQL | 15+ | Banco de dados |
 | Pydantic | 2.0 | Validacao |
 | Alembic | 1.13 | Migracoes |
-| JWT (python-jose) | 3.3 | Autenticacao |
+| JWT (PyJWT) | 2.15 | Autenticacao |
 
 ## Estrutura do Projeto
 

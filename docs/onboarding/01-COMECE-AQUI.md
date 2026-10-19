@@ -37,13 +37,13 @@ Termos que aparecem no código e nas conversas — vale internalizar antes de me
 
 ## Stack em uma linha
 
-**Backend:** FastAPI + SQLAlchemy 2 (async) + Alembic + Pydantic v2, Python 3.11+. **Frontend:** React 18 + TypeScript + Vite + Zustand + TanStack Query + Tailwind. **Banco:** SQLite no dev (padrão, zero setup), PostgreSQL 16 via Docker (opcional). **Jobs:** APScheduler. **E2E:** Playwright.
+**Backend:** FastAPI + SQLAlchemy 2 (async) + Alembic + Pydantic v2, Python 3.12+. **Frontend:** React 18 + TypeScript + Vite + Zustand + TanStack Query + Tailwind. **Banco:** SQLite no dev (padrão, zero setup), PostgreSQL 16 via Docker (opcional). **Jobs:** APScheduler. **E2E:** Playwright.
 
 ---
 
 ## Setup do ambiente
 
-Pré-requisitos: **Python 3.11+**, **Node 20+**, **Git**. Docker é opcional (só se quiser PostgreSQL).
+Pré-requisitos: **Python 3.12+**, **Node 20+**, **Git**. Docker é opcional (só se quiser PostgreSQL).
 
 > O caminho feliz usa **SQLite** — não precisa de Docker nem de banco instalado.
 
