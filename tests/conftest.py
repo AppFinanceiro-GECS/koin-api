@@ -157,6 +157,33 @@ async def credit_card_due_before_closing(db_session: AsyncSession, test_user: Us
 
 
 @pytest_asyncio.fixture
+async def credit_card_closing_end_of_month(db_session: AsyncSession, test_user: User) -> CreditCard:
+    """Cartão com fechamento dia 31 (dia inválido em meses curtos, ex. fevereiro)."""
+    account = Account(
+        user_id=test_user.id,
+        name="Cartão Fecha Fim de Mês",
+        type=AccountType.CREDIT_CARD.value,
+        balance=0,
+    )
+    db_session.add(account)
+    await db_session.flush()
+
+    card = CreditCard(
+        user_id=test_user.id,
+        account_id=account.id,
+        closing_day=31,
+        due_day=10,
+        credit_limit=10000,
+        last_four_digits="9999",
+        is_active=True,
+    )
+    db_session.add(card)
+    await db_session.flush()
+    await db_session.refresh(card)
+    return card
+
+
+@pytest_asyncio.fixture
 async def expense_category(db_session: AsyncSession, test_user: User) -> Category:
     category = Category(
         user_id=test_user.id,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, timedelta
+from decimal import Decimal
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func, or_, select
@@ -1920,7 +1921,7 @@ class TransactionService:
         self,
         user: User,
         merchant_name: str | None,
-        amount: float,
+        amount: Decimal,
         transaction_date: date,
         credit_card_id: int | None = None,
     ) -> Transaction | None:
@@ -1943,8 +1944,8 @@ class TransactionService:
             return None
 
         normalized_merchant = merchant_name.lower().strip()[:50]
-        min_amount = amount * 0.95
-        max_amount = amount * 1.05
+        min_amount = amount * Decimal("0.95")
+        max_amount = amount * Decimal("1.05")
         min_date = transaction_date - timedelta(days=15)
         max_date = transaction_date + timedelta(days=15)
 

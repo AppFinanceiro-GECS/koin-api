@@ -8,6 +8,7 @@ from decimal import Decimal
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -19,7 +20,7 @@ from app.models.transaction import Transaction, TransactionType
 from app.models.user import User
 from app.modules.analytics.services.analytics_service import AnalyticsService
 from app.modules.credit_cards.services.invoice_service import InvoiceService
-from app.modules.transactions.schemas.transaction import TransactionConfirm
+from app.modules.transactions.schemas.transaction import TransactionConfirm, TransactionCreate
 from app.modules.transactions.services.transaction_service import TransactionService
 
 
@@ -148,3 +149,74 @@ async def test_analytics_mes_exclui_pagamento_de_fatura(
     # Fatura 200 + débito 50 = 250. Sem exclusão seria 200 + 50 + 200 = 450.
     assert summary.total_expense == pytest.approx(250.0)
     assert invoice.payment_transaction_id is not None
+
+
+# ============================================
+# Issue #39 — validação de amount e date
+# ============================================
+
+
+def _valid_transaction_kwargs(**overrides) -> dict:
+    kwargs = {
+        "type": TransactionType.EXPENSE,
+        "account_id": 1,
+        "amount": Decimal("50.00"),
+        "date": date.today(),
+    }
+    kwargs.update(overrides)
+    return kwargs
+
+
+def test_amount_zero_e_rejeitado():
+    with pytest.raises(ValidationError):
+        TransactionCreate(**_valid_transaction_kwargs(amount=Decimal("0")))
+
+
+def test_amount_negativo_e_rejeitado():
+    with pytest.raises(ValidationError):
+        TransactionCreate(**_valid_transaction_kwargs(amount=Decimal("-10.00")))
+
+
+def test_amount_com_mais_de_duas_casas_decimais_e_rejeitado_sem_arredondar():
+    """Issue #39 — recusa, não arredonda (ex.: 0.001 não vira 0.00)."""
+    with pytest.raises(ValidationError):
+        TransactionCreate(**_valid_transaction_kwargs(amount=Decimal("10.999")))
+
+
+def test_amount_valido_com_duas_casas_decimais_e_aceito():
+    transaction = TransactionCreate(**_valid_transaction_kwargs(amount=Decimal("79.90")))
+    assert transaction.amount == Decimal("79.90")
+
+
+def test_data_muito_no_futuro_e_rejeitada():
+    """Issue #39 — data além de hoje + 1 ano (ex.: 2999-01-01) deve ser recusada."""
+    with pytest.raises(ValidationError):
+        TransactionCreate(**_valid_transaction_kwargs(date=date(2999, 1, 1)))
+
+
+def test_data_muito_no_passado_e_rejeitada():
+    too_old = date.today().replace(year=date.today().year - 11)
+    with pytest.raises(ValidationError):
+        TransactionCreate(**_valid_transaction_kwargs(date=too_old))
+
+
+def test_data_dentro_da_janela_permitida_e_aceita():
+    transaction = TransactionCreate(**_valid_transaction_kwargs(date=date.today()))
+    assert transaction.date == date.today()
+
+
+def test_transaction_confirm_tambem_valida_amount_e_date():
+    """O mesmo validador vale pro fluxo de confirmação de documento extraído."""
+    with pytest.raises(ValidationError):
+        TransactionConfirm(
+            account_id=1,
+            amount=Decimal("0"),
+            date=date.today(),
+        )
+
+    with pytest.raises(ValidationError):
+        TransactionConfirm(
+            account_id=1,
+            amount=Decimal("50.00"),
+            date=date(2999, 1, 1),
+        )

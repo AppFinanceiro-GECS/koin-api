@@ -49,6 +49,42 @@ async def test_vencimento_anterior_ao_fechamento_vai_para_mes_seguinte(
 
 
 @pytest.mark.asyncio
+async def test_fechamento_dia_31_usa_ultimo_dia_real_do_mes(
+    db_session: AsyncSession, credit_card_closing_end_of_month: CreditCard
+):
+    """Issue #39 — cartão com closing_day=31 não pode travar em 28 em meses de 31 dias."""
+    dates = InvoiceService(db_session).calculate_invoice_dates(
+        credit_card_closing_end_of_month, reference_month=1, reference_year=2026
+    )
+
+    assert dates["closing_date"] == date(2026, 1, 31)
+
+
+@pytest.mark.asyncio
+async def test_fechamento_dia_31_em_fevereiro_comum_cai_no_dia_28(
+    db_session: AsyncSession, credit_card_closing_end_of_month: CreditCard
+):
+    """Issue #39 — fevereiro sem ano bissexto tem 28 dias."""
+    dates = InvoiceService(db_session).calculate_invoice_dates(
+        credit_card_closing_end_of_month, reference_month=2, reference_year=2026
+    )
+
+    assert dates["closing_date"] == date(2026, 2, 28)
+
+
+@pytest.mark.asyncio
+async def test_fechamento_dia_31_em_fevereiro_bissexto_cai_no_dia_29(
+    db_session: AsyncSession, credit_card_closing_end_of_month: CreditCard
+):
+    """Issue #39 — fevereiro de ano bissexto (ex. 2028) tem 29 dias."""
+    dates = InvoiceService(db_session).calculate_invoice_dates(
+        credit_card_closing_end_of_month, reference_month=2, reference_year=2028
+    )
+
+    assert dates["closing_date"] == date(2028, 2, 29)
+
+
+@pytest.mark.asyncio
 async def test_pagar_com_conta_cartao_retorna_400(
     db_session: AsyncSession,
     test_user: User,

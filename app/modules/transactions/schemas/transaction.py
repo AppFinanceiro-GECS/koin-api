@@ -1,18 +1,39 @@
 from datetime import date as date_type
 from datetime import datetime
+from decimal import Decimal
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
 
 from app.models.household import OwnershipType
 from app.models.transaction import PaymentMethod, TransactionType
+
+# Data de transacao: entre 10 anos atras e 1 ano a frente. Parcelas futuras
+# projetadas pelo installment_service tem a propria regra (nao passam por aqui).
+TRANSACTION_DATE_PAST_YEARS = 10
+TRANSACTION_DATE_FUTURE_YEARS = 1
+
+
+def _validate_transaction_date(value: date_type) -> date_type:
+    today = date_type.today()
+    earliest = today.replace(year=today.year - TRANSACTION_DATE_PAST_YEARS)
+    latest = today.replace(year=today.year + TRANSACTION_DATE_FUTURE_YEARS)
+    if value < earliest or value > latest:
+        raise ValueError(
+            f"Data da transação deve estar entre {earliest.isoformat()} e {latest.isoformat()}"
+        )
+    return value
+
+
+TransactionDate = Annotated[date_type, AfterValidator(_validate_transaction_date)]
 
 
 class TransactionBase(BaseModel):
     type: TransactionType
     payment_method: PaymentMethod | None = None
-    amount: float = Field(ge=0)  # ge=0 permite valores >= 0 (incluindo zero)
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     currency: str = "BRL"
-    date: date_type
+    date: TransactionDate
     description: str | None = None
     notes: str | None = None
     tags: list[str] | None = None
@@ -57,8 +78,8 @@ class TransactionConfirm(BaseModel):
 
     document_id: int | None = None  # Opcional para transacoes sem documento
     account_id: int
-    amount: float = Field(ge=0)
-    date: date_type
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
+    date: TransactionDate
     category_id: int | None = None
     merchant_name: str | None = None
     description: str | None = None
@@ -101,8 +122,8 @@ class TransactionConfirm(BaseModel):
 
 
 class TransactionUpdate(BaseModel):
-    amount: float | None = Field(None, ge=0)  # ge=0 permite valores >= 0
-    date: date_type | None = None
+    amount: Decimal | None = Field(None, gt=0, max_digits=12, decimal_places=2)
+    date: TransactionDate | None = None
     type: TransactionType | None = None
     payment_method: PaymentMethod | None = None
     account_id: int | None = None
@@ -174,8 +195,8 @@ class BatchConfirmItem(BaseModel):
 
     document_id: int | None = None
     account_id: int
-    amount: float = Field(ge=0)
-    date: date_type
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
+    date: TransactionDate
     category_id: int | None = None
     merchant_name: str | None = None
     description: str | None = None
@@ -244,7 +265,7 @@ class SplitPaymentItem(BaseModel):
     """Item de pagamento em uma transacao com pagamento dividido"""
 
     payment_method: PaymentMethod
-    amount: float = Field(ge=0)
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     account_id: int
     benefit_card_id: int | None = None  # Se for pagamento com VA/VR
     credit_card_id: int | None = None  # Se for pagamento com cartao de credito
@@ -254,8 +275,8 @@ class SplitPaymentRequest(BaseModel):
     """Request para criar transacao com pagamento dividido"""
 
     document_id: int | None = None
-    date: date_type
-    total_amount: float = Field(ge=0)
+    date: TransactionDate
+    total_amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     description: str | None = None
     merchant_name: str | None = None
     category_id: int | None = None
