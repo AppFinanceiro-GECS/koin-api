@@ -1,5 +1,6 @@
 """Servico para gerenciamento de faturas de cartao de credito"""
 
+from calendar import monthrange
 from datetime import date
 from decimal import Decimal
 
@@ -80,26 +81,21 @@ class InvoiceService:
         closing_day = credit_card.closing_day
         due_day = credit_card.due_day
 
-        # Calcular data de fechamento (no mes de referencia)
-        try:
-            closing_date = date(reference_year, reference_month, min(closing_day, 28))
-        except ValueError:
-            # Em caso de dia invalido, usar ultimo dia do mes
-            closing_date = date(reference_year, reference_month, 28)
+        # Calcular data de fechamento (no mes de referencia). Usa o ultimo dia
+        # real do mes (28-31) em vez de travar em 28, senao um cartao que
+        # fecha dia 30 sempre fecharia dia 28 (inclusive em meses de 31 dias).
+        closing_last_day = monthrange(reference_year, reference_month)[1]
+        closing_date = date(reference_year, reference_month, min(closing_day, closing_last_day))
 
         # Calcular data de vencimento
         # Se due_day < closing_day, vencimento e no mes seguinte
         if due_day < closing_day:
             due_date_month = closing_date + relativedelta(months=1)
-            try:
-                due_date = date(due_date_month.year, due_date_month.month, min(due_day, 28))
-            except ValueError:
-                due_date = date(due_date_month.year, due_date_month.month, 28)
+            due_last_day = monthrange(due_date_month.year, due_date_month.month)[1]
+            due_date = date(due_date_month.year, due_date_month.month, min(due_day, due_last_day))
         else:
-            try:
-                due_date = date(reference_year, reference_month, min(due_day, 28))
-            except ValueError:
-                due_date = date(reference_year, reference_month, 28)
+            due_last_day = monthrange(reference_year, reference_month)[1]
+            due_date = date(reference_year, reference_month, min(due_day, due_last_day))
 
         return {
             "closing_date": closing_date,
