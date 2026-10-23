@@ -69,6 +69,7 @@ from .income_split_rule import IncomeSplitRule, SplitType
 from .installment import InstallmentSeries, InstallmentSeriesStatus
 from .invitation import Invitation, InvitationStatus
 from .license import License, LicenseStatus, LicenseType
+from .login_attempt import LoginAttempt
 from .merchant import Merchant
 from .notification import (
     Notification,
@@ -96,6 +97,7 @@ __all__ = [
     "LicenseType",
     "LicenseStatus",
     "User",
+    "LoginAttempt",
     "Account",
     "HouseholdMember",
     "HouseholdRole",

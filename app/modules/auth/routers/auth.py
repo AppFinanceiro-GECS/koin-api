@@ -43,7 +43,7 @@ async def get_current_user_info(current_user: CurrentUser):
 
 
 @router.post("/login", response_model=Token)
-@limiter.limit("5/minute")
+@limiter.limit("60/minute")  # flood grosseiro por IP; bloqueio real é por e-mail (AuthService)
 async def login(request: Request, credentials: LoginRequest, db: DbSession):
     """Autentica usuário e retorna tokens"""
     auth_service = AuthService(db)
