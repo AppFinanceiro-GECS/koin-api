@@ -17,7 +17,6 @@ from datetime import date, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import or_, select
 
@@ -415,18 +414,6 @@ async def task_process_threshold_automations():
         logger.exception(f"Error in threshold automations: {e}")
 
 
-# ===== Startup Migration Task =====
-
-
-async def task_migrate_credit_card_transactions():
-    """One-time migration: assign credit card transactions to invoices."""
-    from app.main import migrate_credit_card_transactions
-
-    logger.info("Scheduler: running credit card transaction migration...")
-    await migrate_credit_card_transactions()
-    logger.info("Scheduler: credit card migration complete.")
-
-
 # ===== Scheduler Setup =====
 
 
@@ -498,14 +485,6 @@ def register_jobs():
         task_process_threshold_automations,
         CronTrigger(hour="0,6,12,18", minute=45),
         id="process_threshold_automations",
-        replace_existing=True,
-    )
-
-    # One-time startup migration — run 30s after boot
-    scheduler.add_job(
-        task_migrate_credit_card_transactions,
-        DateTrigger(run_date=None),
-        id="startup_migration",
         replace_existing=True,
     )
 
