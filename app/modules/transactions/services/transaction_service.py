@@ -28,6 +28,29 @@ from app.modules.transactions.schemas.transaction import (
 
 logger = logging.getLogger(__name__)
 
+# Relacionamentos usados pelas propriedades computadas de TransactionResponse
+# (category_name, account_name, merchant_name, credit_card_name,
+# income_source_name, invoice_display). Sem isso, serializar uma transacao
+# fora de uma sessao sincrona quebra com MissingGreenlet - CreditCard.account
+# em particular usa lazy loading padrao (nao "noload" como as demais relações
+# de Transaction), entao precisa do selectinload encadeado (issue #33).
+TRANSACTION_EAGER_LOAD_OPTIONS = (
+    selectinload(Transaction.account),
+    selectinload(Transaction.category),
+    selectinload(Transaction.merchant),
+    selectinload(Transaction.credit_card).selectinload(CreditCard.account),
+    selectinload(Transaction.income_source),
+    selectinload(Transaction.invoice),
+)
+
+# Toda query que usa TRANSACTION_EAGER_LOAD_OPTIONS tambem precisa de
+# execution_options(populate_existing=True): a transacao pode ja estar na
+# identity map da sessao (ex.: create()/update() tocam o CreditCard antes de
+# buscar a transacao de novo no final). Sem isso, o SQLAlchemy nao sobrescreve
+# atributos ja "tocados" numa instancia ja rastreada pela sessao, mesmo
+# pedindo eager load explicito - credit_card volta None de novo, em silencio
+# (nao da erro, so nao preenche).
+
 
 class TransactionService:
     def __init__(self, db: AsyncSession):
@@ -36,7 +59,8 @@ class TransactionService:
     async def create(self, user: User, data: TransactionCreate) -> Transaction:
         # Handle transfer between accounts
         if data.type == TransactionType.TRANSFER:
-            return await self._create_transfer(user, data)
+            transfer = await self._create_transfer(user, data)
+            return await self.get_by_id(user, transfer.id)
 
         merchant_id = None
         if data.merchant_name:
@@ -104,7 +128,7 @@ class TransactionService:
 
         if is_installment and installment_current and installment_total:
             # Processar transacao parcelada
-            return await self._create_installment_transaction(
+            installment_transaction = await self._create_installment_transaction(
                 user=user,
                 data=data,
                 merchant_id=merchant_id,
@@ -114,6 +138,7 @@ class TransactionService:
                 invoice_service=invoice_service,
                 payment_method=payment_method,
             )
+            return await self.get_by_id(user, installment_transaction.id)
 
         # Transacao simples (nao parcelada)
         transaction = Transaction(
@@ -166,7 +191,7 @@ class TransactionService:
                 transaction_id=transaction.id,
             )
 
-        return transaction
+        return await self.get_by_id(user, transaction.id)
 
     async def _create_installment_transaction(
         self,
@@ -1166,7 +1191,8 @@ class TransactionService:
         if household_user_ids:
             # Usuário faz parte de um household
             result = await self.db.execute(
-                select(Transaction).where(
+                select(Transaction)
+                .where(
                     Transaction.id == transaction_id,
                     or_(
                         # Transações pessoais do usuário
@@ -1178,14 +1204,19 @@ class TransactionService:
                         ),
                     ),
                 )
+                .options(*TRANSACTION_EAGER_LOAD_OPTIONS)
+                .execution_options(populate_existing=True)
             )
         else:
             # Usuário não faz parte de household - apenas suas próprias transações
             result = await self.db.execute(
-                select(Transaction).where(
+                select(Transaction)
+                .where(
                     Transaction.id == transaction_id,
                     Transaction.user_id == user.id,
                 )
+                .options(*TRANSACTION_EAGER_LOAD_OPTIONS)
+                .execution_options(populate_existing=True)
             )
         return result.scalar_one_or_none()
 
@@ -1247,13 +1278,8 @@ class TransactionService:
             )
 
         # Eager load relationships to avoid N+1 queries
-        query = query.options(
-            selectinload(Transaction.account),
-            selectinload(Transaction.category),
-            selectinload(Transaction.merchant),
-            selectinload(Transaction.credit_card),
-            selectinload(Transaction.income_source),
-            selectinload(Transaction.invoice),
+        query = query.options(*TRANSACTION_EAGER_LOAD_OPTIONS).execution_options(
+            populate_existing=True
         )
 
         query = query.order_by(Transaction.date.desc()).limit(limit).offset(offset)
@@ -1570,7 +1596,7 @@ class TransactionService:
 
                 await self.db.flush()
 
-        return transaction
+        return await self.get_by_id(user, transaction.id)
 
     async def delete(self, user: User, transaction_id: int, delete_series: bool = True) -> dict:
         """

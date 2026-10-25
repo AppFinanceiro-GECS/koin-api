@@ -20,7 +20,11 @@ from app.models.transaction import Transaction, TransactionType
 from app.models.user import User
 from app.modules.analytics.services.analytics_service import AnalyticsService
 from app.modules.credit_cards.services.invoice_service import InvoiceService
-from app.modules.transactions.schemas.transaction import TransactionConfirm, TransactionCreate
+from app.modules.transactions.schemas.transaction import (
+    TransactionConfirm,
+    TransactionCreate,
+    TransactionResponse,
+)
 from app.modules.transactions.services.transaction_service import TransactionService
 
 
@@ -220,3 +224,89 @@ def test_transaction_confirm_tambem_valida_amount_e_date():
             amount=Decimal("50.00"),
             date=date(2999, 1, 1),
         )
+
+
+# ============================================
+# Issue #33 — GET /transactions 500 com compra no cartão
+# ============================================
+
+
+@pytest.mark.asyncio
+async def test_listar_transacoes_com_compra_no_cartao_nao_quebra(
+    db_session: AsyncSession,
+    test_user: User,
+    credit_card_account: Account,
+    credit_card: CreditCard,
+):
+    """credit_card_name acessa self.credit_card.account, que usa lazy loading
+    padrão (diferente das demais relações de Transaction, que são noload).
+    Sem eager load encadeado (selectinload(credit_card).selectinload(account)),
+    serializar a resposta quebra com MissingGreenlet em sessão async."""
+    service = TransactionService(db_session)
+    created = await service.create(
+        test_user,
+        TransactionCreate(
+            type=TransactionType.EXPENSE,
+            account_id=credit_card_account.id,
+            amount=Decimal("150.00"),
+            date=date.today(),
+            description="Compra no cartão",
+        ),
+    )
+    assert created.credit_card_id == credit_card.id
+
+    transactions = await service.list(test_user)
+    assert len(transactions) == 1
+
+    # Reproduz o crash original: serializar a transação acessando
+    # credit_card_name (via self.credit_card.account) fora de sessão síncrona.
+    response = TransactionResponse.model_validate(transactions[0])
+    assert response.credit_card_name == credit_card_account.name
+
+
+@pytest.mark.asyncio
+async def test_detalhar_transacao_com_compra_no_cartao_nao_quebra(
+    db_session: AsyncSession,
+    test_user: User,
+    credit_card_account: Account,
+    credit_card: CreditCard,
+):
+    """Mesma proteção precisa valer pro GET /transactions/{id} (get_by_id)."""
+    service = TransactionService(db_session)
+    created = await service.create(
+        test_user,
+        TransactionCreate(
+            type=TransactionType.EXPENSE,
+            account_id=credit_card_account.id,
+            amount=Decimal("89.90"),
+            date=date.today(),
+        ),
+    )
+
+    fetched = await service.get_by_id(test_user, created.id)
+    response = TransactionResponse.model_validate(fetched)
+    assert response.credit_card_name == credit_card_account.name
+
+
+@pytest.mark.asyncio
+async def test_criar_transacao_no_cartao_ja_retorna_credit_card_name(
+    db_session: AsyncSession,
+    test_user: User,
+    credit_card_account: Account,
+    credit_card: CreditCard,
+):
+    """O retorno do POST /transactions (criar) também precisa vir com o
+    relacionamento carregado, sem precisar de um GET separado depois."""
+    service = TransactionService(db_session)
+    created = await service.create(
+        test_user,
+        TransactionCreate(
+            type=TransactionType.EXPENSE,
+            account_id=credit_card_account.id,
+            amount=Decimal("42.00"),
+            date=date.today(),
+        ),
+    )
+
+    response = TransactionResponse.model_validate(created)
+    assert response.credit_card_name == credit_card_account.name
