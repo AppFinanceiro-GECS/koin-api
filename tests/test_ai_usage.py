@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import BackgroundTasks, HTTPException, UploadFile
+from PIL import Image
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -30,6 +31,13 @@ from app.models.license import License
 from app.models.user import User
 from app.modules.documents.services.document_service import DocumentService
 from app.modules.documents.services.providers.google_provider import GoogleProvider
+
+
+def _png_bytes() -> bytes:
+    buffer = io.BytesIO()
+    Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
+    return buffer.getvalue()
+
 
 MODEL = "gemini-3.5-flash-lite"
 
@@ -236,7 +244,7 @@ async def test_all_upload_paths_block_before_extraction(
     extract = AsyncMock()
     monkeypatch.setattr(service, "_process_document", extract)
     monkeypatch.setattr(service, "_process_batch_images", extract)
-    file = UploadFile(file=io.BytesIO(b"synthetic-image"), filename="synthetic.png")
+    file = UploadFile(file=io.BytesIO(_png_bytes()), filename="synthetic.png")
     args = [test_user, [file]] if method == "upload_batch" else [test_user, file]
     if method == "upload_async":
         args.append(BackgroundTasks())
@@ -378,11 +386,12 @@ async def test_document_survives_daily_breaker(
     monkeypatch.setattr(GoogleProvider, "_get_client", lambda self: object())
     calls = []
     monkeypatch.setattr(GoogleProvider, "_generate_content_sync", lambda *args: calls.append(1))
+    png = _png_bytes()
     headers = {"Authorization": f"Bearer {create_access_token(test_user.id)}"}
     result = await client.post(
         "/api/v1/documents",
         headers=headers,
-        files={"file": ("synthetic.png", b"synthetic", "image/png")},
+        files={"file": ("synthetic.png", png, "image/png")},
     )
     assert result.status_code == 429
     document_id = result.json()["detail"]["document_id"]
@@ -390,7 +399,7 @@ async def test_document_survives_daily_breaker(
     assert doc.status == "failed"
     from pathlib import Path
 
-    assert Path(doc.file_path).read_bytes() == b"synthetic"
+    assert Path(doc.file_path).read_bytes() == png
     assert not calls
 
 

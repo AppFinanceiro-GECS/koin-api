@@ -30,7 +30,19 @@ class Settings(BaseSettings):
 
     # Document Processing
     max_upload_size_mb: int = 10
-    allowed_extensions: list[str] = ["jpg", "jpeg", "png", "pdf", "csv", "xlsx", "xls"]
+    # O upload decide pelo conteúdo (upload_files.py). A lista só documenta o que a API aceita.
+    allowed_extensions: list[str] = [
+        "jpg",
+        "jpeg",
+        "png",
+        "webp",
+        "heic",
+        "heif",
+        "pdf",
+        "csv",
+        "xlsx",
+        "xls",
+    ]
 
     # Storage
     upload_dir: str = "./uploads"
