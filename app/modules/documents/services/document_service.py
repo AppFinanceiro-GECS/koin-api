@@ -21,6 +21,7 @@ from app.models.credit_card import CreditCard
 from app.models.document import Document, DocumentStatus
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.modules.documents.services.upload_files import prepare_upload
 
 logger = logging.getLogger(__name__)
 
@@ -260,32 +261,11 @@ class DocumentService:
         """
         from app.modules.documents.schemas.document import DocumentAsyncUploadResponse
 
-        # Validar extensao
-        ext = file.filename.split(".")[-1].lower() if file.filename else ""
-        if ext not in settings.allowed_extensions:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Extensao nao permitida. Use: {', '.join(settings.allowed_extensions)}",
-            )
-
-        # Validar tamanho ANTES de ler o conteudo (economia de memoria)
-        file.file.seek(0, 2)  # Vai para o final
-        file_size = file.file.tell()
-        file.file.seek(0)  # Volta para o início
-
-        max_size = settings.max_upload_size_mb * 1024 * 1024
-        if file_size > max_size:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Arquivo muito grande. Maximo: {settings.max_upload_size_mb}MB",
-            )
-
-        # Ler conteudo (tamanho já validado)
-        content = await file.read()
+        prepared = await prepare_upload(file)
+        content = prepared.content
 
         # Check if PDF requires password
-        is_pdf = file.filename and file.filename.lower().endswith(".pdf")
-        if is_pdf:
+        if prepared.mime_type == "application/pdf":
             from app.modules.documents.services.pdf_converter import check_pdf_needs_password
 
             needs_password = check_pdf_needs_password(content)
@@ -321,7 +301,7 @@ class DocumentService:
         upload_dir = Path(settings.upload_dir) / str(user.id)
         upload_dir.mkdir(parents=True, exist_ok=True)
 
-        file_path = upload_dir / f"{file_hash}.{ext}"
+        file_path = upload_dir / f"{file_hash}.{prepared.extension}"
         await asyncio.to_thread(_write_file_sync, file_path, content)
 
         # Guardar tamanho antes de limpar content
@@ -330,6 +310,8 @@ class DocumentService:
         if existing_document is not None:
             document = existing_document
             document.file_path = str(file_path)
+            document.mime_type = prepared.mime_type
+            document.file_size = content_size
             document.status = DocumentStatus.PROCESSING
             await self.db.flush()
         else:
@@ -339,8 +321,8 @@ class DocumentService:
                 file_path=str(file_path),
                 file_hash=file_hash,
                 file_size=content_size,
-                mime_type=file.content_type or f"application/{ext}",
-                original_filename=file.filename or "unknown",
+                mime_type=prepared.mime_type,
+                original_filename=prepared.original_filename,
                 status=DocumentStatus.PROCESSING,  # Ja marca como processing
             )
             await self._add_document(user, document)
@@ -357,8 +339,8 @@ class DocumentService:
             document.id,
             user.id,
             str(file_path),  # Passa path ao inves de bytes para economizar memoria
-            file.content_type or f"application/{ext}",
-            file.filename or "unknown",
+            prepared.mime_type,
+            prepared.original_filename,
             password,  # Pass password to background task
         )
 
@@ -378,32 +360,11 @@ class DocumentService:
         credit_card_id: int | None = None,
         force: bool = False,
     ) -> Document:
-        # Validar extensao
-        ext = file.filename.split(".")[-1].lower() if file.filename else ""
-        if ext not in settings.allowed_extensions:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Extensao nao permitida. Use: {', '.join(settings.allowed_extensions)}",
-            )
-
-        # Validar tamanho ANTES de ler o conteudo (economia de memoria)
-        file.file.seek(0, 2)  # Vai para o final
-        file_size = file.file.tell()
-        file.file.seek(0)  # Volta para o início
-
-        max_size = settings.max_upload_size_mb * 1024 * 1024
-        if file_size > max_size:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Arquivo muito grande. Maximo: {settings.max_upload_size_mb}MB",
-            )
-
-        # Ler conteudo (tamanho já validado)
-        content = await file.read()
+        prepared = await prepare_upload(file)
+        content = prepared.content
 
         # Check if PDF requires password
-        is_pdf = file.filename and file.filename.lower().endswith(".pdf")
-        if is_pdf:
+        if prepared.mime_type == "application/pdf":
             from app.modules.documents.services.pdf_converter import check_pdf_needs_password
 
             needs_password = check_pdf_needs_password(content)
@@ -441,13 +402,15 @@ class DocumentService:
         upload_dir = Path(settings.upload_dir) / str(user.id)
         upload_dir.mkdir(parents=True, exist_ok=True)
 
-        file_path = upload_dir / f"{file_hash}.{ext}"
+        file_path = upload_dir / f"{file_hash}.{prepared.extension}"
         # Escrita em thread separada para nao bloquear o event loop
         await asyncio.to_thread(_write_file_sync, file_path, content)
 
         if existing_document is not None:
             document = existing_document
             document.file_path = str(file_path)
+            document.mime_type = prepared.mime_type
+            document.file_size = len(content)
             document.status = DocumentStatus.PENDING
         else:
             document = Document(
@@ -455,8 +418,8 @@ class DocumentService:
                 file_path=str(file_path),
                 file_hash=file_hash,
                 file_size=len(content),
-                mime_type=file.content_type or f"application/{ext}",
-                original_filename=file.filename or "unknown",
+                mime_type=prepared.mime_type,
+                original_filename=prepared.original_filename,
                 status=DocumentStatus.PENDING,
             )
             await self._add_document(user, document)
@@ -633,50 +596,21 @@ class DocumentService:
                 detail="Maximo de 10 arquivos permitido",
             )
 
-        # Extensoes permitidas para batch (apenas imagens)
-        allowed_batch_extensions = {"jpg", "jpeg", "png", "heic", "heif"}
-
-        # Processar cada arquivo
         images: list[tuple[bytes, str]] = []
         total_size = 0
         combined_hash_data = b""
 
         for file in files:
-            ext = file.filename.split(".")[-1].lower() if file.filename else ""
-            if ext not in allowed_batch_extensions:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Extensao '{ext}' nao permitida. Use: {', '.join(allowed_batch_extensions)}",
-                )
+            prepared = await prepare_upload(file, images_only=True)
+            total_size += prepared.original_size
+            images.append((prepared.content, prepared.mime_type))
+            combined_hash_data += prepared.content
 
-            content = await file.read()
-            total_size += len(content)
-
-            # Validar tamanho individual (10MB por arquivo)
-            if len(content) > settings.max_upload_size_mb * 1024 * 1024:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Arquivo muito grande. Maximo: {settings.max_upload_size_mb}MB por arquivo",
-                )
-
-            # Converter HEIC para JPEG se necessario
-            if ext in ("heic", "heif"):
-                content, mime_type = await self._convert_heic_to_jpeg(content)
-            else:
-                mime_type = file.content_type or f"image/{ext}"
-                # Normalizar mime_type
-                if mime_type == "image/jpg":
-                    mime_type = "image/jpeg"
-
-            images.append((content, mime_type))
-            combined_hash_data += content
-
-        # Validar tamanho total (50MB)
         max_total_size = 50 * 1024 * 1024
         if total_size > max_total_size:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Tamanho total muito grande. Maximo: 50MB",
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail="Tamanho total muito grande. Máximo: 50MB",
             )
 
         # Calcular hash combinado para dedupe
@@ -850,43 +784,6 @@ class DocumentService:
             )
 
         return response
-
-    async def _convert_heic_to_jpeg(self, heic_content: bytes) -> tuple[bytes, str]:
-        """Converte imagem HEIC para JPEG usando pillow-heif"""
-        import io
-
-        def _convert():
-            try:
-                import pillow_heif
-                from PIL import Image
-
-                # Registrar o plugin HEIF
-                pillow_heif.register_heif_opener()
-
-                # Abrir imagem HEIC
-                img = Image.open(io.BytesIO(heic_content))
-
-                # Converter para RGB se necessario (HEIC pode ter alpha)
-                if img.mode in ("RGBA", "P"):
-                    img = img.convert("RGB")
-
-                # Salvar como JPEG
-                output = io.BytesIO()
-                img.save(output, format="JPEG", quality=85)
-                return output.getvalue()
-            except ImportError:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="pillow-heif nao instalado. Execute: pip install pillow-heif",
-                )
-            except Exception as e:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Erro ao converter HEIC: {str(e)}",
-                )
-
-        jpeg_content = await asyncio.to_thread(_convert)
-        return jpeg_content, "image/jpeg"
 
     @metered("extraction", document_arg="document")
     async def _process_batch_images(
