@@ -47,7 +47,7 @@ rapidfuzz>=3.14.6  # Fuzzy string matching for duplicate detection
 google-genai>=2.25.0
 
 # Mistral AI (OCR + LLM)
-mistralai>=1.0.0
+mistralai>=3.0.0
 
 # Scheduler (replaces Celery Beat — no Redis needed)
 apscheduler>=3.10.0,<4.0.0
