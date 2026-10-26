@@ -8,6 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.email_address import normalize_email
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -33,8 +34,9 @@ class AuthService:
         self.db = db
 
     async def register(self, user_data: UserCreate) -> User:
+        email = normalize_email(user_data.email)
         # Verificar se email já existe
-        result = await self.db.execute(select(User).where(User.email == user_data.email))
+        result = await self.db.execute(select(User).where(User.email == email))
         if result.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -43,7 +45,7 @@ class AuthService:
 
         # Criar usuário
         user = User(
-            email=user_data.email,
+            email=email,
             name=user_data.name,
             hashed_password=get_password_hash(user_data.password),
         )
@@ -53,6 +55,7 @@ class AuthService:
         return user
 
     async def login(self, email: str, password: str) -> Token:
+        email = normalize_email(email)
         attempt = await self._get_or_create_login_attempt(email)
 
         now = utc_now()

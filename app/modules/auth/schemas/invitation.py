@@ -4,13 +4,14 @@ Schemas de convite: criacao, validacao e registro via convite.
 
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
+from app.core.email_address import NormalizedEmail
 from app.models.invitation import InvitationStatus
 
 
 class InvitationCreate(BaseModel):
-    email: EmailStr
+    email: NormalizedEmail
     license_id: int | None = None
 
 
@@ -51,4 +52,4 @@ class InviteValidation(BaseModel):
 
 class InviteRegister(BaseModel):
     name: str = Field(min_length=2, max_length=100)
-    password: str = Field(min_length=6, max_length=100)
+    password: str = Field(min_length=8, max_length=72)

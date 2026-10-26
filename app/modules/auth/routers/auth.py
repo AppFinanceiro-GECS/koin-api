@@ -2,11 +2,13 @@
 Rotas de autenticacao: login, refresh, convites e reset de senha.
 """
 
-from fastapi import APIRouter, Body, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
+from app.core.config import settings
 from app.core.deps import CurrentUser, DbSession
+from app.core.email_address import NormalizedEmail, normalize_email
 from app.core.rate_limit import limiter
 from app.core.security import get_password_hash, validate_password_or_raise
 from app.core.services.email_service import email_service
@@ -17,12 +19,14 @@ from app.modules.auth.schemas.auth import LoginRequest, Token
 from app.modules.auth.schemas.invitation import InviteRegister, InviteValidation
 from app.modules.auth.schemas.user import UserResponse
 from app.modules.auth.services.auth_service import AuthService
+from app.modules.auth.services.password_reset import (
+    assign_reset_token,
+    forgot_email_is_limited,
+    user_by_reset_token,
+)
 from app.modules.auth.services.user_setup import setup_new_user
 
 router = APIRouter()
-
-# Constantes de segurança
-RESET_TOKEN_EXPIRE_HOURS = 1  # Token de reset expira em 1 hora
 
 
 @router.get("/me", response_model=UserResponse)
@@ -48,6 +52,42 @@ async def login(request: Request, credentials: LoginRequest, db: DbSession):
     """Autentica usuário e retorna tokens"""
     auth_service = AuthService(db)
     return await auth_service.login(credentials.email, credentials.password)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: NormalizedEmail
+
+
+@router.post("/forgot-password", status_code=202)
+@limiter.limit("20/hour")
+async def forgot_password(
+    request: Request,
+    data: ForgotPasswordRequest,
+    db: DbSession,
+    background_tasks: BackgroundTasks,
+):
+    """Sempre 202: não revela se o e-mail existe, se a conta está inativa ou se o envio falhou."""
+    if forgot_email_is_limited(data.email):
+        raise HTTPException(
+            status_code=429,
+            detail="Muitas solicitações de recuperação. Tente novamente mais tarde.",
+        )
+
+    user = await db.scalar(select(User).where(User.email == data.email))
+    if user and user.is_active:
+        raw_token = assign_reset_token(user)
+        await db.commit()
+        reset_url = f"{settings.frontend_url}/reset-password/{raw_token}"
+        background_tasks.add_task(
+            email_service.send_password_reset,
+            user.email,
+            reset_url,
+            user.name,
+        )
+
+    return {
+        "message": "Se o e-mail estiver cadastrado, enviaremos instruções para redefinir a senha."
+    }
 
 
 @router.post("/refresh", response_model=Token)
@@ -124,8 +164,10 @@ async def register_via_invitation(
         )
         raise HTTPException(status_code=400, detail=f"Convite {status_str}")
 
+    account_email = normalize_email(invitation.email)
+
     # Verificar se email ja existe
-    existing = await db.scalar(select(User).where(User.email == invitation.email))
+    existing = await db.scalar(select(User).where(User.email == account_email))
     if existing:
         raise HTTPException(status_code=400, detail="Email ja cadastrado")
 
@@ -134,7 +176,7 @@ async def register_via_invitation(
 
     # Criar usuario
     user = User(
-        email=invitation.email,
+        email=account_email,
         hashed_password=get_password_hash(data.password),
         name=data.name,
         is_verified=True,  # Usuario via convite ja eh verificado
@@ -187,7 +229,7 @@ async def register_via_invitation(
 
     # Gerar tokens
     auth_service = AuthService(db)
-    return await auth_service.login(invitation.email, data.password)
+    return await auth_service.login(account_email, data.password)
 
 
 # ========== Password Reset ==========
@@ -199,27 +241,27 @@ class ResetPasswordValidation(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
-    password: str = Field(..., min_length=8, description="Senha deve ter no mínimo 8 caracteres")
+    password: str = Field(..., min_length=8, max_length=72)
+
+
+async def _user_for_reset(token: str, db: DbSession) -> User:
+    user = await user_by_reset_token(db, token)
+    if not user:
+        raise HTTPException(status_code=404, detail="Token inválido ou expirado")
+
+    if user.reset_token_expires and utc_now() > user.reset_token_expires:
+        user.reset_token = None
+        user.reset_token_expires = None
+        await db.commit()
+        raise HTTPException(status_code=400, detail="Token expirado")
+
+    return user
 
 
 @router.get("/reset-password/{token}")
 async def validate_reset_token(token: str, db: DbSession):
     """Valida um token de reset de senha"""
-    result = await db.execute(select(User).where(User.reset_token == token))
-    user = result.scalar_one_or_none()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="Token inválido ou expirado")
-
-    # Verificar expiração do token (se o campo existir)
-    if hasattr(user, "reset_token_expires") and user.reset_token_expires:
-        if utc_now() > user.reset_token_expires:
-            # Limpar token expirado
-            user.reset_token = None
-            user.reset_token_expires = None
-            await db.commit()
-            raise HTTPException(status_code=400, detail="Token expirado")
-
+    user = await _user_for_reset(token, db)
     return {"email": user.email, "is_valid": True}
 
 
@@ -227,33 +269,16 @@ async def validate_reset_token(token: str, db: DbSession):
 @limiter.limit("3/minute")
 async def reset_password(request: Request, token: str, data: ResetPasswordRequest, db: DbSession):
     """Redefine a senha usando o token"""
-    result = await db.execute(select(User).where(User.reset_token == token))
-    user = result.scalar_one_or_none()
+    user = await _user_for_reset(token, db)
 
-    if not user:
-        raise HTTPException(status_code=404, detail="Token inválido ou expirado")
-
-    # Verificar expiração do token (se o campo existir)
-    if hasattr(user, "reset_token_expires") and user.reset_token_expires:
-        if utc_now() > user.reset_token_expires:
-            # Limpar token expirado
-            user.reset_token = None
-            user.reset_token_expires = None
-            await db.commit()
-            raise HTTPException(status_code=400, detail="Token expirado")
-
-    # Validar força da nova senha
     validate_password_or_raise(data.password)
 
-    # Guardar dados para notificação antes de alterar
     user_email = user.email
     user_name = user.name
 
-    # Atualizar senha e limpar token
     user.hashed_password = get_password_hash(data.password)
     user.reset_token = None
-    if hasattr(user, "reset_token_expires"):
-        user.reset_token_expires = None
+    user.reset_token_expires = None
 
     await db.commit()
 

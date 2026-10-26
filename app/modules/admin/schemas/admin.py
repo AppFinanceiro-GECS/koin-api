@@ -1,7 +1,8 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
+from app.core.email_address import NormalizedEmail
 from app.models.license import LicenseStatus, LicenseType
 
 # ========== License Schemas ==========
@@ -23,7 +24,7 @@ class LicenseBase(BaseModel):
 
 
 class LicenseCreate(LicenseBase):
-    owner_email: EmailStr  # Email do owner (obrigatorio) - recebera convite automatico
+    owner_email: NormalizedEmail  # Email do owner (obrigatorio) - recebera convite automatico
     force_transfer: bool = False  # Se True, transfere usuario existente para nova licenca
 
 
@@ -82,17 +83,17 @@ class LicenseResponse(LicenseBase):
 
 
 class UserAdminCreate(BaseModel):
-    email: EmailStr
+    email: NormalizedEmail
     name: str = Field(..., min_length=2)
-    password: str | None = Field(None, min_length=6)  # Opcional - se nao informado, envia convite
+    password: str | None = Field(None, min_length=8, max_length=72)
     is_admin: bool = False
     license_id: int | None = None
 
 
 class UserAdminUpdate(BaseModel):
     name: str | None = None
-    email: EmailStr | None = None
-    password: str | None = None
+    email: NormalizedEmail | None = None
+    password: str | None = Field(None, min_length=8, max_length=72)
     is_active: bool | None = None
     is_admin: bool | None = None
     license_id: int | None = None

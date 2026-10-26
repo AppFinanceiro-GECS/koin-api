@@ -63,37 +63,22 @@ COMMON_PASSWORDS = {
 }
 
 
+# bcrypt só guarda 72 bytes. Acima disso a senha seria cortada em silêncio.
+_PASSWORD_MAX_BYTES = 72
+
+
 def validate_password_strength(password: str) -> dict:
     """
-    Validates password strength and returns validation result.
-
-    Requirements:
-    - Minimum 8 characters
-    - At least one uppercase letter
-    - At least one lowercase letter
-    - At least one number
-    - At least one special character
-    - Not a common password
+    Política única (NIST 800-63B): mínimo 8, teto do bcrypt, senha comum recusada.
+    Sem exigência de maiúscula, número ou símbolo.
     """
     errors = []
 
     if len(password) < 8:
         errors.append("Senha deve ter no mínimo 8 caracteres")
 
-    if len(password) > 128:
-        errors.append("Senha deve ter no máximo 128 caracteres")
-
-    if not re.search(r"[A-Z]", password):
-        errors.append("Senha deve conter pelo menos uma letra maiúscula")
-
-    if not re.search(r"[a-z]", password):
-        errors.append("Senha deve conter pelo menos uma letra minúscula")
-
-    if not re.search(r"\d", password):
-        errors.append("Senha deve conter pelo menos um número")
-
-    if not re.search(r"[!@#$%^&*(),.?\":{}|<>_\-+=\[\]\\;'/`~]", password):
-        errors.append("Senha deve conter pelo menos um caractere especial (!@#$%^&*)")
+    if len(password.encode("utf-8")) > _PASSWORD_MAX_BYTES:
+        errors.append("Senha muito longa")
 
     if password.lower() in COMMON_PASSWORDS:
         errors.append("Senha muito comum. Escolha uma senha mais segura")

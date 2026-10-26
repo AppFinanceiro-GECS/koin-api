@@ -2,11 +2,13 @@
 Schemas de autenticacao: login, tokens e payloads.
 """
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
+
+from app.core.email_address import NormalizedEmail
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: NormalizedEmail
     password: str
 
 

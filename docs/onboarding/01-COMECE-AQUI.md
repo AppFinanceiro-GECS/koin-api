@@ -82,10 +82,10 @@ Com o venv ativo, instale também os hooks de pre-commit (na raiz do repo): `pip
 O registro é fechado por convite, então o primeiro usuário é criado por script (com o venv ativo, dentro de `backend/`):
 
 ```powershell
-python scripts/create_admin.py voce@exemplo.com 'SuaSenha@123' 'Seu Nome'
+python scripts/create_admin.py voce@exemplo.com 'frase-longa-do-admin' 'Seu Nome'
 ```
 
-A senha precisa de 8+ caracteres com maiúscula, minúscula, número e especial. O script já cria contas e categorias iniciais.
+A senha precisa de 8+ caracteres e não pode ser uma senha comum (`senha123` é recusada). O e-mail segue a mesma validação do login. O script já cria contas e categorias iniciais.
 
 ### Frontend
 
