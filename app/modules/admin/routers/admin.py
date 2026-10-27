@@ -11,7 +11,7 @@ from sqlalchemy import delete, func, select
 
 from app.core.config import settings
 from app.core.deps import CurrentUser, DbSession
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, validate_password_or_raise
 from app.core.services.email_service import email_service
 from app.core.utils import utc_now
 from app.models import Invitation, InvitationStatus, License, LicenseStatus, User
@@ -29,15 +29,13 @@ from app.modules.admin.schemas.admin import (
     UserListResponse,
 )
 from app.modules.auth.schemas.invitation import InvitationCreate, InvitationListResponse
+from app.modules.auth.services.password_reset import assign_reset_token
 from app.modules.auth.services.user_setup import setup_new_user
 
 logger = logging.getLogger(__name__)
 
 
 router = APIRouter()
-
-# Constantes de seguranca
-RESET_TOKEN_EXPIRE_HOURS = 1
 
 
 def require_admin(user: User):
@@ -673,6 +671,7 @@ async def create_user(
 
     # If password provided, create user directly
     if data.password:
+        validate_password_or_raise(data.password)
         user = User(
             email=data.email,
             hashed_password=get_password_hash(data.password),
@@ -775,6 +774,7 @@ async def update_user(
 
     # Hash password if being updated
     if "password" in update_data and update_data["password"]:
+        validate_password_or_raise(update_data["password"])
         update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
     elif "password" in update_data:
         del update_data["password"]
@@ -833,11 +833,7 @@ async def send_password_reset(
     if not user:
         raise HTTPException(status_code=404, detail="Usuario nao encontrado")
 
-    # Gerar token de reset com expiracao
-    reset_token = secrets.token_urlsafe(32)
-    user.reset_token = reset_token
-    user.reset_token_expires = utc_now() + timedelta(hours=RESET_TOKEN_EXPIRE_HOURS)
-
+    reset_token = assign_reset_token(user)
     await db.commit()
 
     # Enviar email

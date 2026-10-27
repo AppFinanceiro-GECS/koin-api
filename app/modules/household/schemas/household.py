@@ -4,8 +4,9 @@ Schemas de household: membros da familia, contexto e convites.
 
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
+from app.core.email_address import NormalizedEmail
 from app.models.household import HouseholdRole, OwnershipType
 
 # ========== Household Member Schemas ==========
@@ -68,7 +69,7 @@ class FamilyContext(BaseModel):
 class FamilyInviteRequest(BaseModel):
     """Request para convidar membro da familia"""
 
-    email: EmailStr
+    email: NormalizedEmail
     nickname: str | None = None
 
 

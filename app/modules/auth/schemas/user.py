@@ -4,21 +4,23 @@ Schemas de usuario: criacao, atualizacao e resposta.
 
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
+
+from app.core.email_address import NormalizedEmail
 
 
 class UserBase(BaseModel):
-    email: EmailStr
+    email: NormalizedEmail
     name: str = Field(min_length=2, max_length=100)
 
 
 class UserCreate(UserBase):
-    password: str = Field(min_length=6, max_length=100)
+    password: str = Field(min_length=8, max_length=72)
 
 
 class UserUpdate(BaseModel):
     name: str | None = Field(None, min_length=2, max_length=100)
-    email: EmailStr | None = None
+    email: NormalizedEmail | None = None
 
 
 class UserResponse(UserBase):
@@ -34,4 +36,4 @@ class UserResponse(UserBase):
 
 class ChangePassword(BaseModel):
     current_password: str = Field(min_length=1)
-    new_password: str = Field(min_length=6, max_length=100)
+    new_password: str = Field(min_length=8, max_length=72)

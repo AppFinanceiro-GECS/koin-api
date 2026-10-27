@@ -53,10 +53,11 @@ flowchart TB
 **Responsabilidade:** Autenticacao e gestao de usuarios
 
 **Funcionalidades:**
-- Login com email/senha
+- Login com email/senha (e-mail sem distinção de maiúsculas)
 - Registro via convite
 - Refresh de tokens JWT
-- Reset de senha
+- Pedido de reset que sempre responde 202
+- Reset de senha com token de uso único
 - Alteracao de senha
 - Perfil do usuario
 
@@ -67,9 +68,10 @@ flowchart TB
 | POST | `/auth/register/invite/{token}` | Registro via convite |
 | POST | `/auth/refresh` | Refresh token |
 | POST | `/auth/logout` | Logout |
-| POST | `/auth/password-reset` | Solicitar reset |
-| POST | `/auth/password-reset/{token}` | Executar reset |
-| PUT | `/auth/change-password` | Alterar senha |
+| POST | `/auth/forgot-password` | Solicitar reset (sempre 202) |
+| GET | `/auth/reset-password/{token}` | Validar token de reset |
+| POST | `/auth/reset-password/{token}` | Executar reset |
+| POST | `/users/me/change-password` | Alterar senha |
 
 ---
 
