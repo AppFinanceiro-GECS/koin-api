@@ -6,6 +6,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.utils import today_br
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
@@ -52,7 +53,7 @@ async def get_current_weekly_review(
     current_user: User = Depends(get_current_user),
 ):
     """Get weekly review for the current week."""
-    today = date.today()
+    today = today_br()
     year, week, _ = today.isocalendar()
 
     service = WeeklyReviewService(session)

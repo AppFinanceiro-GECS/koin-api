@@ -9,7 +9,7 @@ from app.models.gamification import StreakHistory, StreakType, UserStreak
 from app.models.user import User
 
 from ..schemas import StreakDayInfo, StreakResponse, StreakWeekView
-
+from app.core.utils import today_br
 
 class StreakService:
     def __init__(self, db: AsyncSession):
@@ -20,7 +20,7 @@ class StreakService:
 
     async def record_action(self, user: User, streak_type: StreakType) -> UserStreak:
         """Registra uma ação e atualiza o streak"""
-        today = date.today()
+        today = today_br()
 
         # Buscar streak existente
         result = await self.db.execute(
@@ -97,7 +97,7 @@ class StreakService:
         if not streak:
             return None
 
-        today = date.today()
+        today = today_br()
         is_active_today = streak.last_action_date == today
 
         # Verificar se streak está quebrado (mais de 1 dia sem ação)
@@ -136,7 +136,7 @@ class StreakService:
 
     async def get_week_view(self, user: User, streak_type: StreakType) -> StreakWeekView:
         """Retorna visualização da semana para o widget"""
-        today = date.today()
+        today = today_br()
 
         # Pegar streak atual
         streak_data = await self.get_streak(user, streak_type)

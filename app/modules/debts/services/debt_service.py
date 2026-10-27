@@ -10,6 +10,7 @@ from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.utils import today_br
 
 from app.models.debt import Debt, DebtPayment, DebtStatus, DebtType
 from app.models.user import User
@@ -156,7 +157,7 @@ class DebtService:
         # Marcar como quitada se saldo zerou
         if debt.current_balance <= 0 and debt.status == DebtStatus.ACTIVE.value:
             debt.status = DebtStatus.PAID_OFF.value
-            debt.paid_off_date = date.today()
+            debt.paid_off_date = today_br()
             debt.current_balance = Decimal(0)
 
         await self.db.flush()
@@ -223,7 +224,7 @@ class DebtService:
         # Verificar se quitou
         if debt.current_balance <= 0:
             debt.status = DebtStatus.PAID_OFF.value
-            debt.paid_off_date = date.today()
+            debt.paid_off_date = today_br()
 
         await self.db.flush()
         await self.db.refresh(payment)
@@ -270,7 +271,7 @@ class DebtService:
         if active and total_minimum > 0:
             # Estimativa simples: saldo total / pagamento total mensal
             months = int(total_owed / total_minimum) + 1
-            debt_free_date = date.today() + relativedelta(months=months)
+            debt_free_date = today_br() + relativedelta(months=months)
 
         return DebtSummary(
             total_debts=len(debts),
@@ -372,7 +373,7 @@ class DebtService:
         # Calcular próxima data de pagamento
         next_payment_date = None
         if debt.due_day and debt.status == DebtStatus.ACTIVE.value:
-            today = date.today()
+            today = today_br()
             next_payment = date(today.year, today.month, min(debt.due_day, 28))
             if next_payment <= today:
                 next_payment = next_payment + relativedelta(months=1)
@@ -418,7 +419,7 @@ class DebtService:
                 months_to_payoff=0,
                 total_interest_if_minimum=Decimal(0),
                 total_paid_if_minimum=debt.current_balance,
-                payoff_date_if_minimum=date.today(),
+                payoff_date_if_minimum=today_br(),
             )
 
         # Simular pagamento mínimo
@@ -438,7 +439,7 @@ class DebtService:
             total_paid += payment
             months += 1
 
-        payoff_date = date.today() + relativedelta(months=months)
+        payoff_date = today_br() + relativedelta(months=months)
 
         result = DebtPayoffProjection(
             months_to_payoff=months,
@@ -465,7 +466,7 @@ class DebtService:
             result.extra_payment = extra_payment
             result.months_saved = months - extra_months
             result.interest_saved = total_interest - extra_interest
-            result.payoff_date_with_extra = date.today() + relativedelta(months=extra_months)
+            result.payoff_date_with_extra = today_br() + relativedelta(months=extra_months)
 
         return result
 
@@ -480,7 +481,7 @@ class DebtService:
                 debts_order=[],
                 total_months=0,
                 total_interest=Decimal(0),
-                debt_free_date=date.today(),
+                debt_free_date=today_br(),
             )
 
         # Inicializar saldos
@@ -547,7 +548,7 @@ class DebtService:
                     if order == 1
                     else monthly_payment,
                     months_to_payoff=debt_months,
-                    payoff_date=date.today() + relativedelta(months=total_months),
+                    payoff_date=today_br() + relativedelta(months=total_months),
                     total_interest_paid=debt_interest,
                     order=order,
                 )
@@ -559,7 +560,7 @@ class DebtService:
             debts_order=steps,
             total_months=total_months,
             total_interest=total_interest,
-            debt_free_date=date.today() + relativedelta(months=total_months),
+            debt_free_date=today_br() + relativedelta(months=total_months),
         )
 
     def _get_monthly_rate(self, debt: Debt) -> Decimal:

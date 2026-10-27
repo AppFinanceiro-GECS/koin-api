@@ -19,11 +19,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH" \
     UPLOAD_DIR=/app/uploads \
-    PORT=8000
+    PORT=8000 \
+    TZ=America/Sao_Paulo
 
-# libpq5: asyncpg/psycopg | tesseract: OCR | libzbar0: QR code de cupom fiscal
+# libpq5: asyncpg/psycopg | tesseract: OCR | libzbar0: QR code de cupom fiscal | tzdata: fuso horário BR
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 tesseract-ocr tesseract-ocr-por libzbar0 \
+    libpq5 tesseract-ocr tesseract-ocr-por libzbar0 tzdata \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1000 koin
 

@@ -7,11 +7,11 @@ from pydantic import BaseModel, Field
 
 from app.models.goal import GoalStatus, GoalType
 from app.models.household import OwnershipType
-
+from app.core.utils import today_br
 
 class GoalContributionBase(BaseModel):
     amount: Decimal = Field(..., gt=0)
-    contribution_date: date = Field(default_factory=date.today)
+    contribution_date: date = Field(default_factory=today_br)
     notes: str | None = None
     transaction_id: int | None = None
 

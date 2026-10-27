@@ -1,6 +1,7 @@
 """Utility functions for the application."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 UTC = timezone.utc  # noqa: UP017
 
@@ -14,3 +15,8 @@ def utc_now() -> datetime:
     TIMESTAMP WITHOUT TIME ZONE columns.
     """
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def today_br() -> date:
+    """Retorna a data atual no fuso horário de Brasília."""
+    return datetime.now(ZoneInfo("America/Sao_Paulo")).date()

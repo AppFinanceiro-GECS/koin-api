@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from app.core.email_address import NormalizedEmail
 from app.models.license import LicenseStatus, LicenseType
+from app.core.utils import today_br
 
 # ========== License Schemas ==========
 
@@ -18,7 +19,7 @@ class LicenseBase(BaseModel):
     has_debt_strategies: bool = True
     has_goals: bool = True
     has_budget: bool = True
-    start_date: date = Field(default_factory=date.today)
+    start_date: date = Field(default_factory=today_br)
     end_date: date | None = None
     notes: str | None = None
 

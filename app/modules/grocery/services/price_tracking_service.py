@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from app.core.utils import today_br
 
 from app.models.grocery import (
     GroceryPriceHistory,
@@ -42,7 +43,7 @@ class PriceTrackingService:
             return None
 
         # Get price history
-        start_date = date.today() - timedelta(days=days)
+        start_date = today_br() - timedelta(days=days)
         query = (
             select(GroceryPriceHistory)
             .where(

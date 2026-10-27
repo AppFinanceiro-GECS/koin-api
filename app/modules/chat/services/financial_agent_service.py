@@ -49,6 +49,7 @@ from app.models.recurring import RecurringStatus, RecurringTransaction
 from app.models.transaction import Transaction, TransactionType
 from app.models.user import User
 from app.modules.chat.schemas.chat import ChatResponse
+from app.core.utils import today_br
 
 # Limite de mensagens por conversa para evitar vazamento de memória
 MAX_MESSAGES_PER_CONVERSATION = 10
@@ -378,7 +379,7 @@ Exemplos: "cartoes,fluxo" ou "geral" ou "mercado" ou "cartoes,geral"."""
 
         # Dados básicos sempre incluídos
         household_user_ids = await self._get_household_user_ids(user)
-        today = date.today()
+        today = today_br()
         period = query_context.get("period") or {}
         period_start = period.get("start", date(today.year, today.month, 1))
         period_end = period.get("end", today)
@@ -460,7 +461,7 @@ Exemplos: "cartoes,fluxo" ou "geral" ou "mercado" ou "cartoes,geral"."""
             period_start: Data início do período para filtrar faturas
             period_end: Data fim do período para filtrar faturas
         """
-        today = date.today()
+        today = today_br()
         mes_atual = today.month
         ano_atual = today.year
 
@@ -1269,7 +1270,7 @@ Exemplos: "cartoes,fluxo" ou "geral" ou "mercado" ou "cartoes,geral"."""
         self, user: User, period_start: date, period_end: date
     ) -> dict[str, Any]:
         """Contexto detalhado para o especialista de orçamento"""
-        today = date.today()
+        today = today_br()
 
         # Buscar orçamento do mês
         budget_result = await self.db.execute(
@@ -1440,7 +1441,7 @@ Exemplos: "cartoes,fluxo" ou "geral" ou "mercado" ou "cartoes,geral"."""
             contribuicao_mensal = None
             meses_restantes = None
             if g.target_date:
-                today = date.today()
+                today = today_br()
                 meses_restantes = max(
                     1, (g.target_date.year - today.year) * 12 + (g.target_date.month - today.month)
                 )
@@ -1596,7 +1597,7 @@ Exemplos: "cartoes,fluxo" ou "geral" ou "mercado" ou "cartoes,geral"."""
         self, user: User, period_start: date, period_end: date, household_user_ids: list[int]
     ) -> dict[str, Any]:
         """Contexto detalhado para o especialista de fluxo de caixa"""
-        today = date.today()
+        today = today_br()
 
         # Buscar fontes de receita
         income_sources_result = await self.db.execute(
@@ -1731,7 +1732,7 @@ Exemplos: "cartoes,fluxo" ou "geral" ou "mercado" ou "cartoes,geral"."""
         beneficios = []
         total_saldo = 0
         total_recarga_mensal = 0
-        today = date.today()
+        today = today_br()
 
         for b in benefit_cards:
             account = accounts.get(b.account_id)
@@ -1813,7 +1814,7 @@ Exemplos: "cartoes,fluxo" ou "geral" ou "mercado" ou "cartoes,geral"."""
         self, user: User, household_user_ids: list[int]
     ) -> dict[str, Any]:
         """Contexto detalhado para o especialista de calendário financeiro"""
-        today = date.today()
+        today = today_br()
         end_date = today + timedelta(days=30)  # Próximos 30 dias
 
         # Buscar faturas de cartão com vencimento próximo
@@ -2010,7 +2011,7 @@ Exemplos: "cartoes,fluxo" ou "geral" ou "mercado" ou "cartoes,geral"."""
         self, user: User, period_start: date, period_end: date
     ) -> dict[str, Any]:
         """Contexto detalhado para o especialista de review semanal"""
-        today = date.today()
+        today = today_br()
 
         # Calcular semana atual (ISO)
         week_number = today.isocalendar()[1]
@@ -2919,7 +2920,7 @@ PONTOS IMPORTANTES:
             "comparison": False,
         }
 
-        today = date.today()
+        today = today_br()
 
         # Detectar mes especifico
         for month_name, month_num in self.MONTHS_PT.items():
@@ -3043,7 +3044,7 @@ PONTOS IMPORTANTES:
     ) -> dict[str, Any]:
         """Busca contexto financeiro completo e detalhado"""
         context: dict[str, Any] = {}
-        today = date.today()
+        today = today_br()
         period = query_context.get("period") or {}
         period_start = period.get("start", date(today.year, today.month, 1))
         period_end = period.get("end", today)
@@ -3495,7 +3496,7 @@ PONTOS IMPORTANTES:
         series_list = result.scalars().all()
 
         parcelas = []
-        today = date.today()
+        today = today_br()
         for s in series_list:
             # Calcular data de termino estimada
             remaining = s.installment_count - s.paid_count
@@ -3565,7 +3566,7 @@ PONTOS IMPORTANTES:
 
     async def _get_future_invoices(self, user: User, context: dict) -> list[dict]:
         """Projeta faturas dos proximos 3 meses baseado em parcelas e recorrentes"""
-        today = date.today()
+        today = today_br()
         projecao = []
 
         # Soma de parcelas ativas por mes
@@ -3633,7 +3634,7 @@ PONTOS IMPORTANTES:
 
     async def _get_budget_health(self, user: User) -> dict:
         """Calcula health score do orcamento do mes atual"""
-        today = date.today()
+        today = today_br()
 
         # Buscar orcamento do mes
         budget_result = await self.db.execute(

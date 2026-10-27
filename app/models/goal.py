@@ -13,7 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.utils import utc_now
 
 from ..core.database import Base
-
+from app.core.utils import today_br
 
 class GoalType(str, Enum):
     """Tipo de meta financeira"""
@@ -60,7 +60,7 @@ class Goal(Base):
     initial_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)  # Valor inicial
 
     # Datas
-    start_date: Mapped[date] = mapped_column(Date, default=date.today)
+    start_date: Mapped[date] = mapped_column(Date, default=today_br)
     target_date: Mapped[date | None] = mapped_column(Date)  # Prazo desejado
     completed_date: Mapped[date | None] = mapped_column(Date)  # Data de conclusão
 
@@ -115,7 +115,7 @@ class GoalContribution(Base):
     goal_id: Mapped[int] = mapped_column(ForeignKey("goals.id", ondelete="CASCADE"), index=True)
 
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
-    contribution_date: Mapped[date] = mapped_column(Date, default=date.today)
+    contribution_date: Mapped[date] = mapped_column(Date, default=today_br)
     notes: Mapped[str | None] = mapped_column(String(200))
 
     # Vinculação opcional a transação

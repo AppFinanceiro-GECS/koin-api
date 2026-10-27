@@ -15,6 +15,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.utils import today_br
 
 from app.core.utils import utc_now
 from app.models.account import Account
@@ -59,7 +60,7 @@ class AlertEngine:
 
     async def check_invoice_due_dates(self, user: User) -> int:
         """Check for invoices approaching due date."""
-        today = date.today()
+        today = today_br()
         count = 0
 
         # Get open invoices
@@ -137,7 +138,7 @@ class AlertEngine:
 
     async def check_budget_thresholds(self, user: User) -> int:
         """Check for budget thresholds exceeded."""
-        today = date.today()
+        today = today_br()
         count = 0
 
         # Get current month's budget
@@ -402,7 +403,7 @@ class AlertEngine:
 
     async def check_recurring_due(self, user: User) -> int:
         """Check for recurring transactions due tomorrow."""
-        tomorrow = date.today() + timedelta(days=1)
+        tomorrow = today_br() + timedelta(days=1)
         count = 0
 
         query = select(RecurringTransaction).where(
@@ -448,7 +449,7 @@ class AlertEngine:
         So cria notificacoes no dia 1 do mes - em outros dias e no-op.
         As notificacoes sao escalonadas via scheduled_for para evitar burst de push.
         """
-        today = date.today()
+        today = today_br()
         if today.day != 1:
             return 0
 
@@ -524,7 +525,7 @@ class AlertEngine:
             ):
                 continue
 
-            days_until_due = (dto.due_date - date.today()).days
+            days_until_due = (dto.due_date - today_br()).days
             await self._create_missing_invoice_notification(
                 user_id=user.id,
                 notification_type=NotificationType.INVOICE_MISSING_PRE_DUE,
@@ -669,7 +670,7 @@ class AlertEngine:
         entity_id: int,
     ) -> bool:
         """Check if a notification was already sent today."""
-        today_start = datetime.combine(date.today(), datetime.min.time())
+        today_start = datetime.combine(today_br(), datetime.min.time())
         query = select(Notification).where(
             Notification.user_id == user_id,
             Notification.type == notification_type.value,

@@ -27,6 +27,7 @@ from enum import Enum
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.utils import today_br
 
 from app.models.credit_card import CreditCard
 from app.models.credit_card_invoice import CreditCardInvoice, InvoiceStatus
@@ -111,7 +112,7 @@ class ExpectedInvoiceService:
         )
 
         result: list[ExpectedInvoiceDTO] = []
-        today = date.today()
+        today = today_br()
 
         for card in cards:
             if not self._card_is_eligible_for_month(card, year, month, today):
@@ -151,11 +152,11 @@ class ExpectedInvoiceService:
 
         Calcula o mes de referencia a partir da data do vencimento esperado.
         """
-        target_date = date.today() + timedelta(days=days_ahead)
+        target_date = today_br() + timedelta(days=days_ahead)
         cards = await self._list_active_cards(user.id)
 
         results: list[ExpectedInvoiceDTO] = []
-        today = date.today()
+        today = today_br()
 
         for card in cards:
             # Descobrir qual (ref_month, ref_year) tem due_date == target_date

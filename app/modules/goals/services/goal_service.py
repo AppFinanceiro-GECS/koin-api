@@ -10,6 +10,7 @@ from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.utils import today_br
 
 from app.models.account import Account
 from app.models.goal import Goal, GoalContribution, GoalStatus, GoalType
@@ -118,7 +119,7 @@ class GoalService:
         # Calcular contribuição mensal sugerida
         if data.target_date and goal.auto_calculate_contribution:
             goal.monthly_contribution = self._calculate_monthly_contribution(
-                goal.target_amount - goal.current_amount, date.today(), data.target_date
+                goal.target_amount - goal.current_amount, today_br(), data.target_date
             )
 
         self.db.add(goal)
@@ -149,13 +150,13 @@ class GoalService:
         # Recalcular contribuição se necessário
         if goal.auto_calculate_contribution and goal.target_date:
             goal.monthly_contribution = self._calculate_monthly_contribution(
-                goal.target_amount - goal.current_amount, date.today(), goal.target_date
+                goal.target_amount - goal.current_amount, today_br(), goal.target_date
             )
 
         # Marcar como concluída se atingiu o valor
         if goal.current_amount >= goal.target_amount and goal.status == GoalStatus.ACTIVE.value:
             goal.status = GoalStatus.COMPLETED.value
-            goal.completed_date = date.today()
+            goal.completed_date = today_br()
 
         await self.db.flush()
         await self.db.refresh(goal)
@@ -209,7 +210,7 @@ class GoalService:
         # Verificar se atingiu a meta
         if goal.current_amount >= goal.target_amount:
             goal.status = GoalStatus.COMPLETED.value
-            goal.completed_date = date.today()
+            goal.completed_date = today_br()
 
         await self.db.flush()
         await self.db.refresh(contribution)
@@ -260,7 +261,7 @@ class GoalService:
         Recomenda 3-6 meses de despesas
         """
         # Calcular média de despesas dos últimos 3 meses
-        three_months_ago = date.today() - relativedelta(months=3)
+        three_months_ago = today_br() - relativedelta(months=3)
 
         result = await self.db.execute(
             select(func.sum(Transaction.amount)).where(
@@ -312,7 +313,7 @@ class GoalService:
         Metodologia Gustavo Cerbasi: PNIF = Gasto Anual / Rentabilidade
         """
         # Calcular média de despesas dos últimos 12 meses
-        twelve_months_ago = date.today() - relativedelta(months=12)
+        twelve_months_ago = today_br() - relativedelta(months=12)
 
         result = await self.db.execute(
             select(func.sum(Transaction.amount)).where(
@@ -381,7 +382,7 @@ class GoalService:
         # Calcular meses para meta
         months_to_goal = None
         if goal.target_date:
-            today = date.today()
+            today = today_br()
             if goal.target_date > today:
                 delta = relativedelta(goal.target_date, today)
                 months_to_goal = delta.years * 12 + delta.months
@@ -391,7 +392,7 @@ class GoalService:
         suggested_monthly = None
         if goal.target_date and goal.status == GoalStatus.ACTIVE.value:
             suggested_monthly = self._calculate_monthly_contribution(
-                remaining, date.today(), goal.target_date
+                remaining, today_br(), goal.target_date
             )
             if goal.monthly_contribution and suggested_monthly:
                 # Se a contribuição necessária é maior que 120% da planejada, está atrasado
@@ -449,8 +450,8 @@ class GoalService:
         remaining = goal.target_amount - goal.current_amount
         if remaining <= 0:
             return GoalProjection(
-                current_pace_date=date.today(),
-                target_pace_date=date.today(),
+                current_pace_date=today_br(),
+                target_pace_date=today_br(),
                 monthly_needed=Decimal(0),
                 is_achievable=True,
             )
@@ -460,12 +461,12 @@ class GoalService:
             # Média mensal das últimas contribuições
             total_contributed = sum(c.amount for c in goal.contributions)
             first_contribution = min(c.contribution_date for c in goal.contributions)
-            months_contributing = max(1, (date.today() - first_contribution).days / 30)
+            months_contributing = max(1, (today_br() - first_contribution).days / 30)
             avg_monthly = total_contributed / Decimal(str(months_contributing))
 
             if avg_monthly > 0:
                 months_needed = int(remaining / avg_monthly) + 1
-                current_pace_date = date.today() + relativedelta(months=months_needed)
+                current_pace_date = today_br() + relativedelta(months=months_needed)
             else:
                 current_pace_date = None
         else:
@@ -479,7 +480,7 @@ class GoalService:
 
         if goal.target_date:
             monthly_needed = self._calculate_monthly_contribution(
-                remaining, date.today(), goal.target_date
+                remaining, today_br(), goal.target_date
             ) or Decimal(0)
 
             if current_pace_date and current_pace_date > goal.target_date:

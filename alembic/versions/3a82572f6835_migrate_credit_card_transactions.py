@@ -13,6 +13,7 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy.sql import text
 
 from alembic import op
+from app.core.utils import today_br
 
 # revision identifiers, used by Alembic.
 revision: str = "3a82572f6835"
@@ -89,7 +90,7 @@ def upgrade() -> None:
     transactions = result.fetchall()
 
     invoice_cache = {}
-    today = date.today()
+    today = today_br()
 
     for row in transactions:
         t_id, user_id, card_id, t_date, amount, closing_day, due_day = row

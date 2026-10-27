@@ -7,6 +7,7 @@ Provides data for guided weekly financial reviews.
 import logging
 from datetime import date, timedelta
 from decimal import Decimal
+from app.core.utils import today_br
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -323,7 +324,7 @@ class WeeklyReviewService:
             .limit(10)
         )
         goals = result.scalars().all()
-        today = date.today()
+        today = today_br()
 
         progress_list = []
         for goal in goals:
@@ -368,7 +369,7 @@ class WeeklyReviewService:
     ) -> list[UpcomingItem]:
         """Get upcoming financial items."""
         end_date = after_date + timedelta(days=days_ahead)
-        today = date.today()
+        today = today_br()
         items = []
 
         # Recurring transactions

@@ -10,6 +10,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from app.core.utils import today_br
 
 from app.core.ai_usage import AIUnavailable, metered, tracked_call
 from app.core.config import settings
@@ -127,7 +128,7 @@ class SmartListService:
     ) -> list[GroceryPurchase]:
         """Fetch purchase history for the specified period"""
         household_user_ids = await get_household_user_ids(self.db, user)
-        start_date = date.today() - timedelta(days=request.period_days)
+        start_date = today_br() - timedelta(days=request.period_days)
 
         query = (
             select(GroceryPurchase)
@@ -188,7 +189,7 @@ class SmartListService:
         Strategy: Mistral (primary) -> Gemini (fallback)
         """
         prompt = SMART_LIST_PROMPT.format(
-            current_date=date.today().isoformat(),
+            current_date=today_br().isoformat(),
             period_days=request.period_days,
             purchases_json=purchases_json,
         )
@@ -567,7 +568,7 @@ class SmartListService:
         self, user: User, request: SmartListGenerateRequest, items: list[SmartListItemResponse]
     ) -> ShoppingList:
         """Create shopping list with items in database"""
-        today = date.today()
+        today = today_br()
         list_name = request.name or f"Lista Inteligente - {today.strftime('%d/%m/%Y')}"
 
         shopping_list = ShoppingList(
@@ -614,7 +615,7 @@ class SmartListService:
         self, user: User, request: SmartListGenerateRequest
     ) -> SmartListFullResponse:
         """Create an empty response when no purchases found"""
-        today = date.today()
+        today = today_br()
         list_name = request.name or f"Lista Inteligente - {today.strftime('%d/%m/%Y')}"
 
         shopping_list = ShoppingList(

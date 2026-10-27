@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select
+from app.core.utils import today_br
 
 from app.core.deps import CurrentUser, DbSession
 from app.models.credit_card import CreditCard
@@ -173,7 +174,7 @@ async def export_transactions_csv(
         )
 
     output.seek(0)
-    filename = f"transacoes_{date.today().strftime('%Y%m%d')}.csv"
+    filename = f"transacoes_{today_br().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),

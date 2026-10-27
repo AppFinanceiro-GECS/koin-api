@@ -13,6 +13,7 @@ from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.utils import today_br
 
 from app.core.utils import utc_now
 from app.models import (
@@ -308,13 +309,13 @@ class AutomationService:
         elif cond_type == "day_of_month":
             operator = condition.get("operator", "==")
             value = int(condition.get("value", 1))
-            today = date.today().day
+            today = today_br().day
             return self._compare(today, operator, value)
 
         elif cond_type == "day_of_week":
             operator = condition.get("operator", "==")
             value = int(condition.get("value", 0))
-            today = date.today().weekday()
+            today = today_br().weekday()
             return self._compare(today, operator, value)
 
         # Default: condition met
@@ -413,7 +414,7 @@ class AutomationService:
 
         # Create transfer transactions
         now = utc_now()
-        today = date.today()
+        today = today_br()
 
         # Expense from source account
         expense = Transaction(
@@ -549,7 +550,7 @@ class AutomationService:
 
         # Create transaction
         now = utc_now()
-        today = date.today()
+        today = today_br()
 
         transaction = Transaction(
             user_id=user_id,

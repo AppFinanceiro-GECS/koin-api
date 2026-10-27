@@ -4,7 +4,7 @@ Considera feriados nacionais fixos e móveis.
 """
 
 from datetime import date, timedelta
-
+from app.core.utils import today_br
 
 def get_brazilian_holidays(year: int) -> list[date]:
     """
@@ -186,7 +186,7 @@ def get_next_payment_date(
         Próxima data de pagamento
     """
     if reference_date is None:
-        reference_date = date.today()
+        reference_date = today_br()
 
     # Calcular para o mês atual
     payment_date = get_payment_date_for_income(
