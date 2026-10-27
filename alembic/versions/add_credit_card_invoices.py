@@ -12,9 +12,9 @@ from datetime import date
 import sqlalchemy as sa
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import text
+from app.core.utils import today_br
 
 from alembic import op
-from app.core.utils import today_br
 
 # revision identifiers, used by Alembic.
 revision: str = "add_cc_invoices"

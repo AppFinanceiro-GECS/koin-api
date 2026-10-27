@@ -1,8 +1,9 @@
 """
-Rotas de usuario: perfil e alteracao de senha.
+Rotas de usuario: perfil, alteracao de senha, exportacao e exclusao (LGPD).
 """
 
 from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel
 
 from app.core.deps import CurrentUser, DbSession
 from app.core.security import get_password_hash, validate_password_or_raise, verify_password
@@ -11,6 +12,10 @@ from app.modules.auth.schemas.user import ChangePassword, UserResponse, UserUpda
 from app.modules.auth.services.user_service import UserService
 
 router = APIRouter()
+
+
+class DeleteAccountRequest(BaseModel):
+    current_password: str
 
 
 @router.get("/me", response_model=UserResponse)
@@ -49,3 +54,29 @@ async def change_password(
     email_service.send_password_changed_notification(current_user.email, current_user.name)
 
     return {"message": "Senha alterada com sucesso"}
+
+
+@router.get("/me/export", status_code=status.HTTP_200_OK)
+async def export_my_data(
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """
+    Exporta todos os dados pessoais e financeiros do usuário logado (Conformidade LGPD - Art. 18).
+    """
+    user_service = UserService(db)
+    return await user_service.export_user_data(current_user)
+
+
+@router.delete("/me", status_code=status.HTTP_200_OK)
+async def delete_my_account(
+    payload: DeleteAccountRequest,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """
+    Solicita a exclusão da conta do usuário (Soft Delete imediato + Auditoria LGPD).
+    Exige reautenticação com a senha atual.
+    """
+    user_service = UserService(db)
+    return await user_service.delete_account(current_user, payload.current_password)
