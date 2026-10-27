@@ -33,8 +33,18 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Headers de segurança
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
+        # Valor "0" é o recomendado pela OWASP: o filtro XSS legado dos navegadores abre brechas
+        response.headers["X-XSS-Protection"] = "0"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+
+        # Respostas da API têm dados do usuário: sem cache em proxy/navegador, sem renderizar como página.
+        # O Swagger (/docs) fica de fora porque carrega scripts de CDN.
+        if request.url.path.startswith(settings.api_v1_prefix):
+            response.headers.setdefault("Cache-Control", "no-store")
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; frame-ancestors 'none'"
+            )
 
         # HSTS apenas em produção (HTTPS)
         if not settings.debug:
@@ -68,11 +78,17 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 
 
+# Swagger/ReDoc/OpenAPI só fora de produção (hml e dev seguem com a documentação aberta)
+docs_enabled = settings.environment != "production"
+
 app = FastAPI(
     title=settings.app_name,
     description="API para controle financeiro pessoal inteligente",
     version="0.1.0",
     lifespan=lifespan,
+    docs_url="/docs" if docs_enabled else None,
+    redoc_url="/redoc" if docs_enabled else None,
+    openapi_url="/openapi.json" if docs_enabled else None,
 )
 
 # Rate limiting
