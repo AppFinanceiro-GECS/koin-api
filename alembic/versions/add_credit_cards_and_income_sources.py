@@ -81,44 +81,48 @@ def upgrade() -> None:
     )
     op.create_index("ix_income_sources_user_id", "income_sources", ["user_id"])
 
-    # 3. Adicionar colunas credit_card_id e income_source_id na tabela transactions
-    op.add_column("transactions", sa.Column("credit_card_id", sa.Integer(), nullable=True))
-    op.add_column("transactions", sa.Column("income_source_id", sa.Integer(), nullable=True))
+    # 3. Adicionar colunas credit_card_id e income_source_id na tabela transactions via Batch Mode
+    with op.batch_alter_table("transactions") as batch_op:
+        batch_op.add_column(sa.Column("credit_card_id", sa.Integer(), nullable=True))
+        batch_op.add_column(sa.Column("income_source_id", sa.Integer(), nullable=True))
 
-    op.create_foreign_key(
-        "fk_transactions_credit_card_id",
-        "transactions",
-        "credit_cards",
-        ["credit_card_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
-    op.create_foreign_key(
-        "fk_transactions_income_source_id",
-        "transactions",
-        "income_sources",
-        ["income_source_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
-    op.create_index("ix_transactions_credit_card_id", "transactions", ["credit_card_id"])
-    op.create_index("ix_transactions_income_source_id", "transactions", ["income_source_id"])
+    # Criar chaves estrangeiras em um bloco separado para evitar dependência circular
+    with op.batch_alter_table("transactions") as batch_op:
+        batch_op.create_foreign_key(
+            "fk_transactions_credit_card_id",
+            "credit_cards",
+            ["credit_card_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
+        batch_op.create_foreign_key(
+            "fk_transactions_income_source_id",
+            "income_sources",
+            ["income_source_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
+        batch_op.create_index("ix_transactions_credit_card_id", ["credit_card_id"])
+        batch_op.create_index("ix_transactions_income_source_id", ["income_source_id"])
 
 
 def downgrade() -> None:
-    # Remove foreign keys and columns from transactions
-    op.drop_index("ix_transactions_income_source_id", "transactions")
-    op.drop_index("ix_transactions_credit_card_id", "transactions")
-    op.drop_constraint("fk_transactions_income_source_id", "transactions", type_="foreignkey")
-    op.drop_constraint("fk_transactions_credit_card_id", "transactions", type_="foreignkey")
-    op.drop_column("transactions", "income_source_id")
-    op.drop_column("transactions", "credit_card_id")
+    # Remove foreign keys and columns from transactions via Batch Mode (em etapas)
+    with op.batch_alter_table("transactions") as batch_op:
+        batch_op.drop_index("ix_transactions_income_source_id")
+        batch_op.drop_index("ix_transactions_credit_card_id")
+        batch_op.drop_constraint("fk_transactions_income_source_id", type_="foreignkey")
+        batch_op.drop_constraint("fk_transactions_credit_card_id", type_="foreignkey")
+        
+    with op.batch_alter_table("transactions") as batch_op:
+        batch_op.drop_column("income_source_id")
+        batch_op.drop_column("credit_card_id")
 
     # Drop income_sources table
-    op.drop_index("ix_income_sources_user_id", "income_sources")
+    op.drop_index("ix_income_sources_user_id", table_name="income_sources")
     op.drop_table("income_sources")
 
     # Drop credit_cards table
-    op.drop_index("ix_credit_cards_user_id", "credit_cards")
-    op.drop_index("ix_credit_cards_account_id", "credit_cards")
+    op.drop_index("ix_credit_cards_user_id", table_name="credit_cards")
+    op.drop_index("ix_credit_cards_account_id", table_name="credit_cards")
     op.drop_table("credit_cards")

@@ -1,7 +1,9 @@
 """
-Servico de usuario: operacoes CRUD e configuracao inicial.
+Servico de usuario: operacoes CRUD, configuracao inicial, exportacao e exclusao (LGPD).
 """
 
+import hashlib
+from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account, AccountType
 from app.models.category import Category, CategoryType
 from app.models.user import User
+from app.models.transaction import Transaction
+from app.models.credit_card import CreditCard
+from app.models.audit_log import AuditLog
 from app.modules.auth.schemas.user import UserUpdate
+from app.core.security import verify_password
 
 
 class UserService:
@@ -39,6 +45,75 @@ class UserService:
         await self.db.flush()
         await self.db.refresh(user)
         return user
+
+    async def export_user_data(self, user: User) -> dict:
+        """Coleta e estrutura todos os dados do usuário para exportação LGPD (Art. 18)."""
+        # 1. Buscar Contas
+        accounts_res = await self.db.execute(select(Account).where(Account.user_id == user.id))
+        accounts = accounts_res.scalars().all()
+
+        # 2. Buscar Transações
+        transactions_res = await self.db.execute(select(Transaction).where(Transaction.user_id == user.id))
+        transactions = transactions_res.scalars().all()
+
+        # 3. Buscar Cartões de Crédito
+        cards_res = await self.db.execute(select(CreditCard).where(CreditCard.user_id == user.id))
+        cards = cards_res.scalars().all()
+
+        return {
+            "export_metadata": {
+                "user_email": user.email,
+                "exported_at": datetime.utcnow().isoformat(),
+                "compliance": "LGPD Art. 18",
+            },
+            "profile": {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+            },
+            "accounts": [{"id": a.id, "name": a.name, "balance": float(a.balance)} for a in accounts],
+            "transactions": [
+                {
+                    "id": t.id,
+                    "amount": float(t.amount),
+                    "type": t.type,
+                    "date": t.date.isoformat() if t.date else None,
+                    "description": t.description,
+                }
+                for t in transactions
+            ],
+            "credit_cards": [{"id": c.id, "brand": c.card_brand, "limit": float(c.credit_limit)} for c in cards],
+        }
+
+    async def delete_account(self, user: User, password: str) -> dict:
+        """Valida senha, aplica soft delete, registra auditoria LGPD e bloqueia acesso."""
+        # 1. Reautenticação obrigatória
+        if not verify_password(password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Senha atual incorreta. A reautenticação é obrigatória para exclusão da conta."
+            )
+
+        # 2. Marcar Soft Delete e desativar acesso imediato
+        user.deleted_at = datetime.utcnow()
+        user.is_active = False
+
+        # 3. Registrar Auditoria LGPD (Utilizando hash seguro do e-mail para privacidade)
+        email_hash = hashlib.sha256(user.email.encode()).hexdigest()
+        audit_entry = AuditLog(
+            user_hash=email_hash,
+            action="account_soft_delete_requested"
+        )
+        self.db.add(audit_entry)
+
+        # 4. Salvar alterações no banco
+        await self.db.commit()
+
+        return {
+            "message": "Conta desativada com sucesso. Seus dados e arquivos serão permanentemente removidos em até 30 dias.",
+            "scheduled_purge_date": (datetime.utcnow().date()).isoformat()
+        }
 
     async def setup_initial_data(self, user: User) -> None:
         """Configura dados iniciais para novo usuário (conta padrão, categorias)"""

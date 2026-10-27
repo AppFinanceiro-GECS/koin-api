@@ -21,16 +21,19 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     # 1. Adicionar colunas owner na tabela licenses
-    op.add_column("licenses", sa.Column("owner_email", sa.String(255), nullable=True))
-    op.add_column("licenses", sa.Column("owner_user_id", sa.Integer(), nullable=True))
-    op.create_foreign_key(
-        "fk_licenses_owner_user_id",
-        "licenses",
-        "users",
-        ["owner_user_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    with op.batch_alter_table("licenses") as batch_op:
+        batch_op.add_column(sa.Column("owner_email", sa.String(255), nullable=True))
+        batch_op.add_column(sa.Column("owner_user_id", sa.Integer(), nullable=True))
+
+    # Criar a Foreign Key em um bloco separado para evitar dependência circular
+    with op.batch_alter_table("licenses") as batch_op:
+        batch_op.create_foreign_key(
+            "fk_licenses_owner_user_id",
+            "users",
+            ["owner_user_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
 
     # 2. Criar tabela household_members
     op.create_table(
@@ -65,10 +68,10 @@ def upgrade() -> None:
         "recurring_transactions",
     ]
     for table in tables_with_ownership:
-        op.add_column(
-            table,
-            sa.Column("ownership_type", sa.String(20), server_default="personal", nullable=False),
-        )
+        with op.batch_alter_table(table) as batch_op:
+            batch_op.add_column(
+                sa.Column("ownership_type", sa.String(20), server_default="personal", nullable=False)
+            )
 
     # 4. Migrar dados existentes: criar HouseholdMember para cada usuario com licenca
     op.execute("""
@@ -97,14 +100,18 @@ def downgrade() -> None:
         "recurring_transactions",
     ]
     for table in tables_with_ownership:
-        op.drop_column(table, "ownership_type")
+        with op.batch_alter_table(table) as batch_op:
+            batch_op.drop_column("ownership_type")
 
     # Remover tabela household_members
     op.drop_index("ix_household_members_user_id", "household_members")
     op.drop_index("ix_household_members_license_id", "household_members")
     op.drop_table("household_members")
 
-    # Remover colunas owner da tabela licenses
-    op.drop_constraint("fk_licenses_owner_user_id", "licenses", type_="foreignkey")
-    op.drop_column("licenses", "owner_user_id")
-    op.drop_column("licenses", "owner_email")
+    # Remover colunas owner da tabela licenses em blocos separados
+    with op.batch_alter_table("licenses") as batch_op:
+        batch_op.drop_constraint("fk_licenses_owner_user_id", type_="foreignkey")
+        
+    with op.batch_alter_table("licenses") as batch_op:
+        batch_op.drop_column("owner_user_id")
+        batch_op.drop_column("owner_email")
