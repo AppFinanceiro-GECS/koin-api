@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
+from app.core.config import settings
 from app.core.deps import CurrentUser, DbSession
 from app.core.rate_limit import limiter
 from app.core.security import get_password_hash, validate_password_or_raise
@@ -15,7 +16,7 @@ from app.models import Invitation, InvitationStatus, License, User
 from app.models.household import HouseholdMember, HouseholdRole
 from app.modules.auth.schemas.auth import LoginRequest, Token
 from app.modules.auth.schemas.invitation import InviteRegister, InviteValidation
-from app.modules.auth.schemas.user import UserResponse
+from app.modules.auth.schemas.user import UserCreate, UserResponse
 from app.modules.auth.services.auth_service import AuthService
 from app.modules.auth.services.user_setup import setup_new_user
 
@@ -31,15 +32,19 @@ async def get_current_user_info(current_user: CurrentUser):
     return current_user
 
 
-# Registro público desabilitado - apenas via convite
-# @router.post("/register", response_model=UserResponse, status_code=201)
-# async def register(user_data: UserCreate, db: DbSession):
-#     """Registra um novo usuário"""
-#     auth_service = AuthService(db)
-#     user_service = UserService(db)
-#     user = await auth_service.register(user_data)
-#     await user_service.setup_initial_data(user)
-#     return user
+@router.post("/register", response_model=UserResponse, status_code=201)
+@limiter.limit("3/minute")
+async def register(request: Request, user_data: UserCreate, db: DbSession):
+    """Cadastro aberto, só na homologação (ALLOW_OPEN_REGISTRATION). Produção é só por convite."""
+    if not settings.allow_open_registration or settings.environment == "production":
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    validate_password_or_raise(user_data.password)
+    user = await AuthService(db).register(user_data)
+    await setup_new_user(db, user.id)
+    await db.commit()
+    await db.refresh(user)
+    return user
 
 
 @router.post("/login", response_model=Token)
