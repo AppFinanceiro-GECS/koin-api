@@ -14,6 +14,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from app.core.utils import today_br
 
 from app.core.utils import utc_now
 from app.models.budget import (
@@ -111,7 +112,7 @@ class BudgetService:
             category_names = {row[0]: row[1] for row in cat_result.all()}
 
         # Calcular dias restantes no mês
-        today = date.today()
+        today = today_br()
         _, last_day = monthrange(year, month)
         if today.year == year and today.month == month:
             days_remaining = max(0, last_day - today.day)
@@ -429,7 +430,7 @@ class BudgetService:
             )
 
         # Calcular dias restantes no mês
-        today = date.today()
+        today = today_br()
         _, last_day = monthrange(year, month)
         if today.year == year and today.month == month:
             days_remaining = last_day - today.day

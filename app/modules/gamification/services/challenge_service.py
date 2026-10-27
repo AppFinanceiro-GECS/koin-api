@@ -18,6 +18,7 @@ from ..schemas import ChallengeDifficulty as ChallengeDifficultySchema
 from ..schemas import ChallengeListResponse, ChallengeResponse
 from ..schemas import ChallengeStatus as ChallengeStatusSchema
 from .points_service import PointsService
+from app.core.utils import today_br
 
 
 class ChallengeService:
@@ -69,7 +70,7 @@ class ChallengeService:
                 failed.append(response)
 
         # Desafios disponíveis (não iniciados)
-        today = date.today()
+        today = today_br()
         for def_id, definition in all_definitions.items():
             if def_id in participated_ids:
                 # Verificar se é recorrente e o mês anterior
@@ -225,7 +226,7 @@ class ChallengeService:
             return {
                 "days_completed": 0,
                 "category_name": criteria.get("category_name", ""),
-                "start_date": date.today().isoformat(),
+                "start_date": today_br().isoformat(),
             }
 
         elif definition.challenge_type == "reduce_spending":
@@ -282,7 +283,7 @@ class ChallengeService:
         self, uc: UserChallenge, definition: ChallengeDefinition
     ) -> bool:
         """Atualiza desafio de registro diário"""
-        today = date.today().isoformat()
+        today = today_br().isoformat()
         progress = uc.progress or {}
 
         if progress.get("last_register_date") != today:
@@ -369,7 +370,7 @@ class ChallengeService:
 
     async def count_completed_month(self, user: User) -> int:
         """Conta desafios completados este mês"""
-        today = date.today()
+        today = today_br()
         first_of_month = today.replace(day=1)
 
         result = await self.db.execute(

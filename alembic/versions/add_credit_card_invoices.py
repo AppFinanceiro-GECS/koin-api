@@ -14,6 +14,7 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy import text
 
 from alembic import op
+from app.core.utils import today_br
 
 # revision identifiers, used by Alembic.
 revision: str = "add_cc_invoices"
@@ -156,7 +157,7 @@ def migrate_existing_transactions() -> None:
 
     # Cache de faturas já criadas: (card_id, month, year) -> invoice_id
     invoice_cache = {}
-    today = date.today()
+    today = today_br()
 
     for row in transactions:
         t_id, user_id, card_id, t_date, amount, closing_day, due_day = row

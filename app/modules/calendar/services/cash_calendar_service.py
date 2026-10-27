@@ -12,6 +12,7 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from app.core.utils import today_br
 
 from app.models import (
     Account,
@@ -54,7 +55,7 @@ class CashCalendarService:
         """
         Get cash calendar with confirmed transactions and projections.
         """
-        today = date.today()
+        today = today_br()
 
         # Get current balance from accounts
         current_balance = await self._get_current_balance(user)
@@ -333,7 +334,7 @@ class CashCalendarService:
         self, user: User, start_date: date, end_date: date
     ) -> dict[date, list[ProjectionItem]]:
         """Get all projections for the period."""
-        today = date.today()
+        today = today_br()
         # Only project for future dates
         proj_start = max(start_date, today)
 

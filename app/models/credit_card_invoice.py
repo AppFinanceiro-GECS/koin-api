@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
+from app.core.utils import today_br
 
 from sqlalchemy import (
     JSON,
@@ -108,7 +109,7 @@ class CreditCardInvoice(Base):
         """Verifica se está vencida"""
         if self.status == InvoiceStatus.PAID.value:
             return False
-        return date.today() > self.due_date
+        return today_br() > self.due_date
 
     @property
     def period_display(self) -> str:

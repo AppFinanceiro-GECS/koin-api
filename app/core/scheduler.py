@@ -24,6 +24,7 @@ from .config import settings
 from .database import async_session_maker
 from .services.email_service import email_service
 from .utils import utc_now
+from app.core.utils import today_br
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +235,7 @@ async def task_generate_recurring_transactions():
     from app.models.recurring import RecurringTransaction
     from app.models.transaction import Transaction
 
-    today = date.today()
+    today = today_br()
     generated = 0
 
     async with async_session_maker() as db:
@@ -385,7 +386,7 @@ async def task_process_threshold_automations():
             rules = result.scalars().all()
             service = AutomationService(session)
             executed = 0
-            today = date.today()
+            today = today_br()
 
             for rule in rules:
                 try:

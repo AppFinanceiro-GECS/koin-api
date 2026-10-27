@@ -5,6 +5,7 @@ Cobre duplicata (RN004), confirmação de item extraído e analytics (RN008).
 
 from datetime import date
 from decimal import Decimal
+from app.core.utils import today_br
 
 import pytest
 from fastapi import HTTPException
@@ -165,7 +166,7 @@ def _valid_transaction_kwargs(**overrides) -> dict:
         "type": TransactionType.EXPENSE,
         "account_id": 1,
         "amount": Decimal("50.00"),
-        "date": date.today(),
+        "date": today_br(),
     }
     kwargs.update(overrides)
     return kwargs
@@ -199,14 +200,14 @@ def test_data_muito_no_futuro_e_rejeitada():
 
 
 def test_data_muito_no_passado_e_rejeitada():
-    too_old = date.today().replace(year=date.today().year - 11)
+    too_old = today_br().replace(year=today_br().year - 11)
     with pytest.raises(ValidationError):
         TransactionCreate(**_valid_transaction_kwargs(date=too_old))
 
 
 def test_data_dentro_da_janela_permitida_e_aceita():
-    transaction = TransactionCreate(**_valid_transaction_kwargs(date=date.today()))
-    assert transaction.date == date.today()
+    transaction = TransactionCreate(**_valid_transaction_kwargs(date=today_br()))
+    assert transaction.date == today_br()
 
 
 def test_transaction_confirm_tambem_valida_amount_e_date():
@@ -215,7 +216,7 @@ def test_transaction_confirm_tambem_valida_amount_e_date():
         TransactionConfirm(
             account_id=1,
             amount=Decimal("0"),
-            date=date.today(),
+            date=today_br(),
         )
 
     with pytest.raises(ValidationError):
@@ -249,7 +250,7 @@ async def test_listar_transacoes_com_compra_no_cartao_nao_quebra(
             type=TransactionType.EXPENSE,
             account_id=credit_card_account.id,
             amount=Decimal("150.00"),
-            date=date.today(),
+            date=today_br(),
             description="Compra no cartão",
         ),
     )
@@ -279,7 +280,7 @@ async def test_detalhar_transacao_com_compra_no_cartao_nao_quebra(
             type=TransactionType.EXPENSE,
             account_id=credit_card_account.id,
             amount=Decimal("89.90"),
-            date=date.today(),
+            date=today_br(),
         ),
     )
 
@@ -304,7 +305,7 @@ async def test_criar_transacao_no_cartao_ja_retorna_credit_card_name(
             type=TransactionType.EXPENSE,
             account_id=credit_card_account.id,
             amount=Decimal("42.00"),
-            date=date.today(),
+            date=today_br(),
         ),
     )
 

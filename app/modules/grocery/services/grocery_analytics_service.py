@@ -7,6 +7,7 @@ from datetime import date, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.utils import today_br
 
 from app.models.grocery import (
     GROCERY_CATEGORY_DISPLAY,
@@ -49,7 +50,7 @@ class GroceryAnalyticsService:
         member = await get_household_member(self.db, user)
 
         if not end_date:
-            end_date = date.today()
+            end_date = today_br()
         if not start_date:
             start_date = end_date - timedelta(days=90)
 
@@ -134,7 +135,7 @@ class GroceryAnalyticsService:
         member = await get_household_member(self.db, user)
 
         if not end_date:
-            end_date = date.today()
+            end_date = today_br()
         if not start_date:
             start_date = end_date - timedelta(days=30)
 
@@ -203,7 +204,7 @@ class GroceryAnalyticsService:
         member = await get_household_member(self.db, user)
 
         if not end_date:
-            end_date = date.today()
+            end_date = today_br()
         if not start_date:
             start_date = end_date - timedelta(days=30)
 
@@ -270,7 +271,7 @@ class GroceryAnalyticsService:
         member = await get_household_member(self.db, user)
 
         if not end_date:
-            end_date = date.today()
+            end_date = today_br()
         if not start_date:
             start_date = end_date - timedelta(days=30)
 
@@ -397,7 +398,7 @@ class GroceryAnalyticsService:
         spent_amount = float(result.scalar() or 0)
 
         # Project to end of month
-        today = date.today()
+        today = today_br()
         if today.year == year and today.month == month:
             days_passed = today.day
             days_in_month = (end_date - start_date).days

@@ -12,6 +12,7 @@ from app.core.deps import get_current_user
 from app.models import User
 from app.modules.calendar.schemas import CashCalendarResponse, WeeklySummary
 from app.modules.calendar.services import CashCalendarService
+from app.core.utils import today_br
 
 router = APIRouter(prefix="/calendar", tags=["Cash Calendar"])
 
@@ -34,7 +35,7 @@ async def get_daily_calendar(
     - Installments
     """
     if not start_date:
-        start_date = date.today()
+        start_date = today_br()
     if not end_date:
         end_date = start_date + timedelta(days=30)
 
@@ -107,7 +108,7 @@ async def get_running_balance(
     highlighting potential shortfall dates.
     """
     if not start_date:
-        start_date = date.today()
+        start_date = today_br()
     if not end_date:
         end_date = start_date + timedelta(days=days)
 
@@ -138,7 +139,7 @@ async def get_projections(
 
         raise HTTPException(status_code=400, detail="days_ahead must be between 1 and 365")
 
-    start_date = date.today()
+    start_date = today_br()
     end_date = start_date + timedelta(days=days_ahead)
 
     service = CashCalendarService(db)

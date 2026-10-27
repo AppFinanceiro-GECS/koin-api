@@ -9,6 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from app.core.utils import today_br
 
 from app.core.utils import utc_now
 from app.models.grocery import (
@@ -312,7 +313,7 @@ class ShoppingListService:
         household_user_ids = await get_household_user_ids(self.db, user)
 
         # Get purchases from the specified period (90 days by default)
-        start_date = date.today() - timedelta(days=request.period_days)
+        start_date = today_br() - timedelta(days=request.period_days)
 
         query = select(GroceryPurchase).where(GroceryPurchase.purchase_date >= start_date)
 
@@ -358,7 +359,7 @@ class ShoppingListService:
 
         # Calculate urgency score for each product
         items_to_add = []
-        today = date.today()
+        today = today_br()
 
         for name, stats in product_stats.items():
             purchase_count = len(stats["purchases"])

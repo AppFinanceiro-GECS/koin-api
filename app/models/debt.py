@@ -13,7 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.utils import utc_now
 
 from ..core.database import Base
-
+from app.core.utils import today_br
 
 class DebtType(str, Enum):
     """Tipo de dívida"""
@@ -141,7 +141,7 @@ class DebtPayment(Base):
         Numeric(12, 2), default=0
     )  # Parte do principal
     interest_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)  # Parte dos juros
-    payment_date: Mapped[date] = mapped_column(Date, default=date.today)
+    payment_date: Mapped[date] = mapped_column(Date, default=today_br)
     notes: Mapped[str | None] = mapped_column(String(200))
 
     # Vinculação opcional a transação

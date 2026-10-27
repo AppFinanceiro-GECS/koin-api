@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.utils import utc_now
 
 from ..core.database import Base
-
+from app.core.utils import today_br
 
 def generate_license_code() -> str:
     """Gera código amigável: BIV-XXXX-XXXX"""
@@ -57,7 +57,7 @@ class License(Base):
     has_budget: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Datas
-    start_date: Mapped[date] = mapped_column(Date, default=date.today)
+    start_date: Mapped[date] = mapped_column(Date, default=today_br)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Owner da licenca (primeiro usuario a aceitar convite)
@@ -83,7 +83,7 @@ class License(Base):
         """Verifica se a licença está válida"""
         if self.status != LicenseStatus.ACTIVE:
             return False
-        if self.end_date and self.end_date < date.today():
+        if self.end_date and self.end_date < today_br():
             return False
         return True
 
@@ -92,7 +92,7 @@ class License(Base):
         """Retorna dias restantes da licença"""
         if not self.end_date:
             return None
-        delta = self.end_date - date.today()
+        delta = self.end_date - today_br()
         return max(0, delta.days)
 
     @property

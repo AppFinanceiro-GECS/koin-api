@@ -14,6 +14,7 @@ import json
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
+from app.core.utils import today_br
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,7 +69,7 @@ class TestDecimalEncoder:
 class TestParseQuery:
     def test_default_period_is_current_month(self, service):
         result = service._parse_query("quanto gastei")
-        today = date.today()
+        today = today_br()
         assert result["period"]["start"] == date(today.year, today.month, 1)
         assert result["period"]["end"] == today
 
@@ -82,7 +83,7 @@ class TestParseQuery:
 
     def test_detects_last_month(self, service):
         result = service._parse_query("gastos do mes passado")
-        today = date.today()
+        today = today_br()
         expected_month = (today.replace(day=1) - timedelta(days=1)).month
         assert result["period"]["start"].month == expected_month
 
@@ -96,7 +97,7 @@ class TestParseQuery:
 
     def test_detects_current_year(self, service):
         result = service._parse_query("gastos esse ano")
-        today = date.today()
+        today = today_br()
         assert result["period"]["start"] == date(today.year, 1, 1)
 
     def test_detects_comparison(self, service):

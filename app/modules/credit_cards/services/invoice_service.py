@@ -8,6 +8,7 @@ from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.utils import today_br
 
 from app.core.utils import utc_now
 from app.models.account import Account
@@ -366,7 +367,7 @@ class InvoiceService:
             type=TransactionType.EXPENSE.value,
             payment_method=actual_payment_method,
             amount=amount,
-            date=payment_date or date.today(),
+            date=payment_date or today_br(),
             description=f"Pagamento Fatura {card_account.name} - {invoice.period_display}",
             is_fixed=True,
         )
@@ -578,7 +579,7 @@ class InvoiceService:
 
         Retorna quantidade de faturas atualizadas.
         """
-        today = date.today()
+        today = today_br()
         updated_count = 0
 
         # Buscar faturas OPEN que passaram do fechamento
@@ -691,7 +692,7 @@ class InvoiceService:
         credit_card: CreditCard,
     ) -> CreditCardInvoice | None:
         """Obtem a fatura atual (aberta) de um cartao"""
-        today = date.today()
+        today = today_br()
         period = self.calculate_invoice_period(credit_card, today)
 
         result = await self.db.execute(
@@ -927,7 +928,7 @@ class InvoiceService:
         Returns:
             Lista de transacoes projetadas criadas
         """
-        today = date.today()
+        today = today_br()
         created_transactions = []
 
         # Buscar recorrentes ativas vinculadas a conta do cartao

@@ -6,6 +6,7 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from app.core.utils import today_br
 
 from app.models import (
     Account,
@@ -48,7 +49,7 @@ class RecurringTransactionService:
         day_of_week: int | None,
     ) -> date:
         """Calcula a próxima data de vencimento"""
-        today = date.today()
+        today = today_br()
         base_date = last_generated if last_generated else start_date - timedelta(days=1)
 
         if frequency == RecurrenceFrequency.DAILY.value:
@@ -314,7 +315,7 @@ class RecurringTransactionService:
                 select(Transaction).where(
                     Transaction.recurring_id == recurring_id,
                     Transaction.is_paid == False,
-                    Transaction.date >= date.today(),
+                    Transaction.date >= today_br(),
                 )
             )
             projected = proj_result.scalars().all()
@@ -401,7 +402,7 @@ class RecurringTransactionService:
 
     async def generate_pending_transactions(self, user: User) -> list[Transaction]:
         """Gera transações para recorrências pendentes até hoje"""
-        today = date.today()
+        today = today_br()
         generated = []
         invoice_ids_to_update = set()
 
@@ -536,12 +537,12 @@ class RecurringTransactionService:
             recurring.end_date = end_date
 
             # Se a data de termino ja passou, marcar como cancelado
-            if end_date < date.today():
+            if end_date < today_br():
                 recurring.status = RecurringStatus.CANCELLED.value
         else:
             # Cancelamento imediato
             recurring.status = RecurringStatus.CANCELLED.value
-            recurring.end_date = date.today()
+            recurring.end_date = today_br()
 
         # Remover transacoes projetadas (is_paid=False)
         if remove_projected:
@@ -549,7 +550,7 @@ class RecurringTransactionService:
             if cancel_from_month and cancel_from_year:
                 cutoff_date = date(cancel_from_year, cancel_from_month, 1)
             else:
-                cutoff_date = date.today()
+                cutoff_date = today_br()
 
             # Buscar transacoes projetadas desta recorrencia
             proj_result = await self.db.execute(

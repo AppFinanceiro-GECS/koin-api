@@ -7,11 +7,11 @@ from pydantic import BaseModel, Field
 
 from app.models.debt import DebtStatus, DebtType
 from app.models.household import OwnershipType
-
+from app.core.utils import today_br
 
 class DebtPaymentBase(BaseModel):
     amount: Decimal = Field(..., gt=0)
-    payment_date: date = Field(default_factory=date.today)
+    payment_date: date = Field(default_factory=today_br)
     principal_amount: Decimal = Field(default=Decimal(0), ge=0)
     interest_amount: Decimal = Field(default=Decimal(0), ge=0)
     notes: str | None = None

@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func, inspect, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.utils import today_br
 
 from ....models import (
     Account,
@@ -630,7 +631,7 @@ class MCPService:
         }
 
         # Transações do mês atual
-        today = date.today()
+        today = today_br()
         first_of_month = date(today.year, today.month, 1)
         transactions_result = await self.db.execute(
             select(
@@ -737,7 +738,7 @@ class MCPService:
 
     def _parse_period(self, request: ContextRequest) -> dict[str, Any]:
         """Analisa parâmetros de período e retorna datas de início/fim"""
-        today = date.today()
+        today = today_br()
 
         # Se informou mês específico
         if request.month:

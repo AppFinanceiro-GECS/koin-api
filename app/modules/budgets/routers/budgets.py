@@ -3,6 +3,7 @@
 from datetime import date
 
 from fastapi import APIRouter, Query
+from app.core.utils import today_br
 
 from app.core.deps import CurrentUser, DbSession
 from app.modules.budgets.schemas.budget import (
@@ -28,8 +29,8 @@ router = APIRouter()
 async def get_budget(
     current_user: CurrentUser,
     db: DbSession,
-    year: int = Query(default_factory=lambda: date.today().year),
-    month: int = Query(default_factory=lambda: date.today().month, ge=1, le=12),
+    year: int = Query(default_factory=lambda: today_br().year),
+    month: int = Query(default_factory=lambda: today_br().month, ge=1, le=12),
 ):
     """
     Retorna orçamento do mês com gastos calculados.
@@ -69,8 +70,8 @@ async def update_budget(
 async def get_budget_summary(
     current_user: CurrentUser,
     db: DbSession,
-    year: int = Query(default_factory=lambda: date.today().year),
-    month: int = Query(default_factory=lambda: date.today().month, ge=1, le=12),
+    year: int = Query(default_factory=lambda: today_br().year),
+    month: int = Query(default_factory=lambda: today_br().month, ge=1, le=12),
 ):
     """Retorna resumo do orçamento para dashboard"""
     service = BudgetService(db)
@@ -81,8 +82,8 @@ async def get_budget_summary(
 async def get_budget_comparison(
     current_user: CurrentUser,
     db: DbSession,
-    year: int = Query(default_factory=lambda: date.today().year),
-    month: int = Query(default_factory=lambda: date.today().month, ge=1, le=12),
+    year: int = Query(default_factory=lambda: today_br().year),
+    month: int = Query(default_factory=lambda: today_br().month, ge=1, le=12),
 ):
     """Compara orçamento planejado vs realizado por categoria"""
     service = BudgetService(db)
@@ -154,8 +155,8 @@ async def transfer_budget(
     data: BudgetTransferRequest,
     current_user: CurrentUser,
     db: DbSession,
-    year: int = Query(default_factory=lambda: date.today().year),
-    month: int = Query(default_factory=lambda: date.today().month, ge=1, le=12),
+    year: int = Query(default_factory=lambda: today_br().year),
+    month: int = Query(default_factory=lambda:today_br().month, ge=1, le=12),
 ):
     """
     Transfere orçamento entre categorias.
@@ -172,8 +173,8 @@ async def get_budget_item_history(
     category_id: int,
     current_user: CurrentUser,
     db: DbSession,
-    year: int = Query(default_factory=lambda: date.today().year),
-    month: int = Query(default_factory=lambda: date.today().month, ge=1, le=12),
+    year: int = Query(default_factory=lambda: today_br().year),
+    month: int = Query(default_factory=lambda: today_br().month, ge=1, le=12),
     limit: int = Query(default=50, ge=1, le=100),
 ):
     """

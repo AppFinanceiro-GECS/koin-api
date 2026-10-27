@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import aliased
+from app.core.utils import today_br
 
 from app.core.deps import CurrentUser, DbSession
 from app.models.account import Account, AccountType
@@ -763,7 +764,7 @@ async def get_card_current_invoice(
     invoice = await service.get_card_current_invoice(current_user, credit_card)
 
     # Se nao tem fatura, calcular periodo atual
-    today = date.today()
+    today = today_br()
     period = service.calculate_invoice_period(credit_card, today)
 
     if not invoice:
