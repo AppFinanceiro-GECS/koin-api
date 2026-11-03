@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     environment: str = "development"
     app_name: str = "App Financeiro"
     api_v1_prefix: str = "/api/v1"
+    # Cadastro aberto (POST /auth/register) só para homologação. Em production é ignorado.
+    allow_open_registration: bool = False
 
     # CORS - origens permitidas (separadas por vírgula)
     cors_origins: str = "http://localhost:3000"
