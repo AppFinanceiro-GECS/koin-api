@@ -9,7 +9,7 @@ A API roda numa VM da Oracle Cloud (Always Free, São Paulo: `koin-01`, ARM 4 OC
 | `main` | `homologacao` | https://hml.144-22-232-63.sslip.io | `/opt/koin/hml` (projeto `koin-hml`) |
 | `prod` | `producao` | https://api.144-22-232-63.sslip.io | `/opt/koin/prod` (projeto `koin-prod`) |
 
-Swagger em `<URL>/docs`. Os domínios `sslip.io` resolvem para o IP embutido no nome; ao trocar por um domínio próprio, mude `HML_DOMAIN`/`PROD_DOMAIN` em `/opt/koin/proxy/.env`, a variável `PUBLIC_URL` de cada environment e o `eas.json` do koin-app.
+Swagger em `<URL>/docs` (só fora de produção: com `ENVIRONMENT=production` o `/docs`, o `/redoc` e o `/openapi.json` respondem 404, então o `.env` de `/opt/koin/prod` precisa dessa variável; a hml usa `staging`). Os domínios `sslip.io` resolvem para o IP embutido no nome; ao trocar por um domínio próprio, mude `HML_DOMAIN`/`PROD_DOMAIN` em `/opt/koin/proxy/.env`, a variável `PUBLIC_URL` de cada environment e o `eas.json` do koin-app.
 
 Como funciona:
 
