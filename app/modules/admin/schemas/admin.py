@@ -75,6 +75,9 @@ class LicenseResponse(LicenseBase):
     # Membros da familia
     member_count: int = 0
     members: list[HouseholdMemberSummary] | None = None
+    # Só na criação para dono novo: link do convite para mandar por outro canal
+    invite_url: str | None = None
+    invite_token: str | None = None
 
     class Config:
         from_attributes = True

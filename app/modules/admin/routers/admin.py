@@ -28,7 +28,11 @@ from app.modules.admin.schemas.admin import (
     UserAdminUpdate,
     UserListResponse,
 )
-from app.modules.auth.schemas.invitation import InvitationCreate, InvitationListResponse
+from app.modules.auth.schemas.invitation import (
+    InvitationCreate,
+    InvitationListResponse,
+    InviteResent,
+)
 from app.modules.auth.services import session_service
 from app.modules.auth.services.password_reset import assign_reset_token
 from app.modules.auth.services.user_setup import setup_new_user
@@ -37,6 +41,10 @@ logger = logging.getLogger(__name__)
 
 
 router = APIRouter()
+
+
+def invite_url_for(token: str) -> str:
+    return f"{settings.frontend_url}/invite/{token}"
 
 
 def require_admin(user: User):
@@ -411,7 +419,7 @@ async def create_license(
     await db.refresh(invitation)
 
     # Enviar email de convite
-    invite_url = f"{settings.frontend_url}/invite/{invitation.token}"
+    invite_url = invite_url_for(invitation.token)
     email_sent = email_service.send_invitation(
         to_email=data.owner_email,
         invite_url=invite_url,
@@ -448,6 +456,8 @@ async def create_license(
         owner_name=None,
         member_count=0,
         members=[],
+        invite_url=invite_url,
+        invite_token=invitation.token,
     )
 
 
@@ -570,7 +580,11 @@ async def delete_license(
     await db.commit()
 
 
-@router.post("/licenses/{license_id}/resend-invitation", status_code=status.HTTP_200_OK)
+@router.post(
+    "/licenses/{license_id}/resend-invitation",
+    response_model=InviteResent,
+    status_code=status.HTTP_200_OK,
+)
 async def resend_license_invitation(
     license_id: int,
     current_user: CurrentUser,
@@ -619,7 +633,7 @@ async def resend_license_invitation(
     await db.refresh(invitation)
 
     # Enviar email
-    invite_url = f"{settings.frontend_url}/invite/{invitation.token}"
+    invite_url = invite_url_for(invitation.token)
     email_sent = email_service.send_invitation(
         to_email=invitation.email,
         invite_url=invite_url,
@@ -627,12 +641,15 @@ async def resend_license_invitation(
     )
 
     if not email_sent:
-        raise HTTPException(status_code=500, detail="Falha ao enviar email")
+        logger.warning("email_delivery_failed")
 
-    return {
-        "message": "Convite reenviado com sucesso",
-        "expires_at": invitation.expires_at.isoformat(),
-    }
+    return InviteResent(
+        message="Convite renovado" + ("" if email_sent else "; o e-mail não foi enviado"),
+        expires_at=invitation.expires_at,
+        invite_url=invite_url,
+        invite_token=invitation.token,
+        email_sent=email_sent,
+    )
 
 
 # ========== Users ==========
@@ -713,7 +730,7 @@ async def create_user(
     await db.refresh(invitation)
 
     # Send invitation email
-    invite_url = f"{settings.frontend_url}/invite/{invitation.token}"
+    invite_url = invite_url_for(invitation.token)
     email_sent = email_service.send_invitation(
         to_email=data.email,
         invite_url=invite_url,
@@ -947,7 +964,7 @@ async def create_invitation(
     await db.refresh(invitation)
 
     # Enviar email
-    invite_url = f"{settings.frontend_url}/invite/{invitation.token}"
+    invite_url = invite_url_for(invitation.token)
     email_sent = email_service.send_invitation(
         to_email=data.email,
         invite_url=invite_url,
@@ -967,10 +984,17 @@ async def create_invitation(
         invited_by_name=current_user.name,
         expires_at=invitation.expires_at,
         created_at=invitation.created_at,
+        invite_url=invite_url,
+        invite_token=invitation.token,
+        email_sent=email_sent,
     )
 
 
-@router.post("/invitations/{invitation_id}/resend", status_code=status.HTTP_200_OK)
+@router.post(
+    "/invitations/{invitation_id}/resend",
+    response_model=InviteResent,
+    status_code=status.HTTP_200_OK,
+)
 async def resend_invitation(
     invitation_id: int,
     current_user: CurrentUser,
@@ -1001,7 +1025,7 @@ async def resend_invitation(
     await db.commit()
 
     # Enviar email novamente
-    invite_url = f"{settings.frontend_url}/invite/{invitation.token}"
+    invite_url = invite_url_for(invitation.token)
     email_sent = email_service.send_invitation(
         to_email=invitation.email,
         invite_url=invite_url,
@@ -1009,12 +1033,16 @@ async def resend_invitation(
     )
 
     if not email_sent:
-        raise HTTPException(status_code=500, detail="Falha ao enviar email")
+        # o convite vale do mesmo jeito: o admin manda o link por outro canal
+        logger.warning("email_delivery_failed")
 
-    return {
-        "message": "Email reenviado e expiracao resetada",
-        "expires_at": invitation.expires_at.isoformat(),
-    }
+    return InviteResent(
+        message="Convite renovado" + ("" if email_sent else "; o e-mail não foi enviado"),
+        expires_at=invitation.expires_at,
+        invite_url=invite_url,
+        invite_token=invitation.token,
+        email_sent=email_sent,
+    )
 
 
 @router.delete("/invitations/{invitation_id}", status_code=status.HTTP_204_NO_CONTENT)

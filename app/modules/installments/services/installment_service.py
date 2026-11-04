@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date, timedelta
+from decimal import Decimal
 
 from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException, status
@@ -21,7 +22,13 @@ class InstallmentService:
     """Gerencia séries de parcelas e detecta duplicatas"""
 
     # Tolerância para considerar valores "similares" (5%)
-    AMOUNT_TOLERANCE = 0.05
+    AMOUNT_TOLERANCE = Decimal("0.05")
+
+    @classmethod
+    def _amount_range(cls, installment_amount) -> tuple[Decimal, Decimal]:
+        """Faixa de ±5%. O valor chega como Decimal (API) ou float (extração)."""
+        amount = Decimal(str(installment_amount))
+        return amount * (1 - cls.AMOUNT_TOLERANCE), amount * (1 + cls.AMOUNT_TOLERANCE)
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -72,8 +79,7 @@ class InstallmentService:
         normalized_merchant = merchant_name.lower().strip()
 
         # Calcular range de valor
-        min_amount = installment_amount * (1 - self.AMOUNT_TOLERANCE)
-        max_amount = installment_amount * (1 + self.AMOUNT_TOLERANCE)
+        min_amount, max_amount = self._amount_range(installment_amount)
 
         query = select(InstallmentSeries).where(
             and_(
@@ -160,8 +166,7 @@ class InstallmentService:
             return None
 
         # Calcular range de valor (tolerancia de 5%)
-        min_amount = installment_amount * (1 - self.AMOUNT_TOLERANCE)
-        max_amount = installment_amount * (1 + self.AMOUNT_TOLERANCE)
+        min_amount, max_amount = self._amount_range(installment_amount)
 
         # Query base: series ativas com mesmo total de parcelas e valor similar
         query = select(InstallmentSeries).where(
@@ -321,8 +326,7 @@ class InstallmentService:
             return None
 
         # Calcular range de valor (tolerância de 5%)
-        min_amount = installment_amount * (1 - self.AMOUNT_TOLERANCE)
-        max_amount = installment_amount * (1 + self.AMOUNT_TOLERANCE)
+        min_amount, max_amount = self._amount_range(installment_amount)
 
         # Query base: séries ativas com mesmo total de parcelas e valor similar
         query = select(InstallmentSeries).where(

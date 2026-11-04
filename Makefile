@@ -38,6 +38,14 @@ shell: ## Shell dentro do container da API
 create-admin: ## Cria admin (uso: make create-admin email=x senha=y nome=z)
 	$(COMPOSE) exec api python scripts/create_admin.py "$(email)" "$(senha)" "$(nome)"
 
+seed: ## Usuário demo com dados no container local (DEMO_PASSWORD=x; reset=1 recria)
+	$(COMPOSE) exec -e DEMO_PASSWORD="$(DEMO_PASSWORD)" api python scripts/seed_demo.py $(if $(reset),--reset)
+
+seed-hml: ## Usuário demo na homologação (HML_SSH=usuario@host DEMO_PASSWORD=x; reset=1 recria)
+	@test -n "$(HML_SSH)" || { echo "Defina HML_SSH=usuario@host (acesso SSH à VM)"; exit 1; }
+	ssh $(HML_SSH) docker exec -e DEMO_PASSWORD="$(DEMO_PASSWORD)" koin-hml-api-1 \
+		python scripts/seed_demo.py $(if $(reset),--reset)
+
 # ==================== Docker (produção/VPS) ====================
 
 prod-up: ## Sobe em produção com Caddy + HTTPS (requer API_DOMAIN e DEBUG=false no .env)
