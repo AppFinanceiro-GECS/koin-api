@@ -77,6 +77,20 @@ async def _run_alert_for_all_users(alert_method_name: str):
     return total
 
 
+# ===== Documents (RN016 / #37) =====
+
+
+async def task_retry_waiting_documents():
+    from app.modules.documents.services.document_service import retry_waiting_documents
+
+    try:
+        processed = await retry_waiting_documents()
+        if processed:
+            logger.info(f"Scheduler: {processed} documentos reprocessados")
+    except Exception as e:
+        logger.exception(f"Error retrying waiting documents: {e}")
+
+
 # ===== Alert Tasks =====
 
 
@@ -462,6 +476,13 @@ JOBS = [
         task_generate_recurring_transactions,
         CronTrigger(hour=6, minute=0),
         "generate_recurring_transactions",
+    ),
+    # Documentos esperando a IA e processamento preso — a cada 5 minutos
+    (
+        "documents",
+        task_retry_waiting_documents,
+        IntervalTrigger(minutes=5),
+        "retry_waiting_documents",
     ),
     # Automation tasks
     (

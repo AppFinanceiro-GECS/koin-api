@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Index, String, Text
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.utils import utc_now
@@ -14,6 +14,8 @@ class DocumentStatus(str, Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    # RN016: IA indisponível; o arquivo está guardado e o scheduler reprocessa
+    WAITING_AI = "waiting_ai"
 
 
 class DocumentType(str, Enum):
@@ -42,6 +44,12 @@ class Document(Base):
     status: Mapped[str] = mapped_column(String(20), default=DocumentStatus.PENDING)
     document_type: Mapped[str | None] = mapped_column(String(20))
     error_message: Mapped[str | None] = mapped_column(Text)
+    # Código estável do catálogo (ai_failures.py); o app decide por ele, não pelo texto
+    error_code: Mapped[str | None] = mapped_column(String(50))
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Início do processamento atual: processing antigo = processo reiniciado no meio
+    processing_started_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime)
     # Dados extraidos (para async processing)

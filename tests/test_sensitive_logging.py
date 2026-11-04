@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, Mock
 
 import fitz
 import pytest
-from fastapi import BackgroundTasks, UploadFile
+from fastapi import BackgroundTasks, Response, UploadFile
 
 from app.core.config import settings
 from app.models.document import Document, DocumentStatus
@@ -106,7 +106,7 @@ def pdf_bytes(password=None):
 async def test_upload_passes_password_without_logging(
     password, asynchronous, monkeypatch, capsys, caplog
 ):
-    result = object()
+    result = SimpleNamespace(status="completed")
     upload = AsyncMock(return_value=result)
     method = "upload_async" if asynchronous else "upload"
     monkeypatch.setattr(DocumentService, method, upload)
@@ -124,7 +124,7 @@ async def test_upload_passes_password_without_logging(
         actual = await documents.upload_document_async(**kwargs)
         assert upload.await_args.args[3] == password
     else:
-        actual = await documents.upload_document(**kwargs)
+        actual = await documents.upload_document(response=Response(), **kwargs)
         assert upload.await_args.args[2] == password
     assert actual is result
     output = capsys.readouterr()

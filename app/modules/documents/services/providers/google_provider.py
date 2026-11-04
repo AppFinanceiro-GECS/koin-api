@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_DELAY = 2.0
+AI_CALL_TIMEOUT_MS = 90_000
 
 
 class GoogleProvider(BaseProvider):
@@ -95,11 +96,16 @@ class GoogleProvider(BaseProvider):
         if self._client is None:
             try:
                 from google import genai
+                from google.genai import types
 
                 api_key = settings.google_api_key
                 if not api_key:
                     raise ValueError("GOOGLE_API_KEY nao configurada")
-                self._client = genai.Client(api_key=api_key)
+                # sem timeout uma chamada pendurada segura o documento em processing (#37)
+                self._client = genai.Client(
+                    api_key=api_key,
+                    http_options=types.HttpOptions(timeout=AI_CALL_TIMEOUT_MS),
+                )
             except ImportError:
                 raise ImportError("google-genai nao instalado. Execute: pip install google-genai")
         return self._client

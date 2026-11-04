@@ -13,6 +13,7 @@ from .core.config import settings
 from .core.database import engine
 from .core.modules import enabled_modules
 from .core.rate_limit import limiter, rate_limit_exceeded_handler
+from .modules.documents.services.ai_failures import ai_circuit
 from .routers import api_router
 
 # Configuracao do novo log estruturado
@@ -137,4 +138,6 @@ async def health_check():
         "scheduler_jobs": len(scheduler.get_jobs()) if scheduler.running else 0,
         # o app esconde as telas dos módulos desligados (#42)
         "modules": sorted(enabled_modules()),
+        # RN016: o app avisa antes do envio que a leitura está lenta ou pausada
+        "ai": ai_circuit.state(),
     }
