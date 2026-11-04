@@ -66,7 +66,7 @@ async def list_recurring(
 
 
 @router.get("/summary", response_model=RecurringSummary)
-async def get_summary(
+async def get_recurring_summary(
     current_user: CurrentUser,
     db: DbSession,
 ):

@@ -89,6 +89,9 @@ app = FastAPI(
     description="API para controle financeiro pessoal inteligente",
     version=API_VERSION,
     lifespan=lifespan,
+    # operationId = nome da função da rota: o cliente gerado no koin-app ganha nomes
+    # legíveis (login, list_transactions) em vez de login_api_v1_auth_login_post (#54)
+    generate_unique_id_function=lambda route: route.name,
 )
 
 # Rate limiting

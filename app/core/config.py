@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     debug: bool = False  # SQL echo desabilitado por padrao para performance
     sql_echo: bool = False  # SQL echo separado do debug geral
     environment: str = "development"
-    app_name: str = "App Financeiro"
+    app_name: str = "Koin API"
     api_v1_prefix: str = "/api/v1"
 
     # CORS - origens permitidas (separadas por vírgula)

@@ -572,7 +572,7 @@ async def get_table_stats(
 
 
 @router.get("/summary")
-async def get_summary(
+async def get_mcp_summary(
     user: ApiKeyUser,
     db: AsyncSession = Depends(get_db),
 ):
@@ -594,7 +594,7 @@ async def get_summary(
 
 
 @router.get("/me")
-async def get_current_user_info(
+async def get_mcp_user_info(
     user: ApiKeyUser,
 ):
     """
