@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 60
 
+    # Módulos com rotas e jobs ativos (#42): "all", "mvp" ou lista por vírgula
+    enabled_modules: str = "all"
+
     # App
     debug: bool = False  # SQL echo desabilitado por padrao para performance
     sql_echo: bool = False  # SQL echo separado do debug geral
