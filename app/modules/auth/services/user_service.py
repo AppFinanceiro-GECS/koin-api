@@ -17,6 +17,7 @@ from app.models.credit_card import CreditCard
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.modules.auth.schemas.user import UserUpdate
+from app.modules.auth.services import session_service
 
 
 class UserService:
@@ -105,6 +106,7 @@ class UserService:
         # 2. Marcar Soft Delete e desativar acesso imediato
         user.deleted_at = datetime.utcnow()
         user.is_active = False
+        await session_service.revoke_all(self.db, user.id)
 
         # 3. Registrar Auditoria LGPD (Utilizando hash seguro do e-mail para privacidade)
         email_hash = hashlib.sha256(user.email.encode()).hexdigest()

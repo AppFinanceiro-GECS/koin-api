@@ -15,9 +15,10 @@ from app.core.services.email_service import email_service
 from app.core.utils import utc_now
 from app.models import Invitation, InvitationStatus, License, User
 from app.models.household import HouseholdMember, HouseholdRole
-from app.modules.auth.schemas.auth import LoginRequest, Token
+from app.modules.auth.schemas.auth import LoginRequest, RefreshRequest, Token
 from app.modules.auth.schemas.invitation import InviteRegister, InviteValidation
 from app.modules.auth.schemas.user import UserResponse
+from app.modules.auth.services import session_service
 from app.modules.auth.services.auth_service import AuthService
 from app.modules.auth.services.password_reset import (
     assign_reset_token,
@@ -51,7 +52,9 @@ async def get_current_user_info(current_user: CurrentUser):
 async def login(request: Request, credentials: LoginRequest, db: DbSession):
     """Autentica usuário e retorna tokens"""
     auth_service = AuthService(db)
-    return await auth_service.login(credentials.email, credentials.password)
+    return await auth_service.login(
+        credentials.email, credentials.password, credentials.device_name
+    )
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -92,9 +95,23 @@ async def forgot_password(
 
 @router.post("/refresh", response_model=Token)
 async def refresh_token(db: DbSession, refresh_token: str = Body(..., embed=True)):
-    """Renova o access token usando refresh token"""
+    """Troca o refresh token pelo próximo (rotação). O token usado deixa de valer;
+    reusá-lo revoga a sessão do aparelho."""
     auth_service = AuthService(db)
     return await auth_service.refresh_token(refresh_token)
+
+
+@router.post("/logout", status_code=204)
+async def logout(data: RefreshRequest, db: DbSession):
+    """Encerra a sessão deste aparelho. Idempotente: token inválido também devolve 204."""
+    await session_service.logout(db, data.refresh_token)
+
+
+@router.post("/logout-all", status_code=204)
+async def logout_all(current_user: CurrentUser, db: DbSession):
+    """Encerra as sessões de todos os aparelhos, inclusive este."""
+    await session_service.revoke_all(db, current_user.id)
+    await db.commit()
 
 
 # ========== Invitation Registration ==========
@@ -279,6 +296,8 @@ async def reset_password(request: Request, token: str, data: ResetPasswordReques
     user.hashed_password = get_password_hash(data.password)
     user.reset_token = None
     user.reset_token_expires = None
+    # quem pediu a redefinição pode estar recuperando a conta: derruba todos os aparelhos
+    await session_service.revoke_all(db, user.id)
 
     await db.commit()
 

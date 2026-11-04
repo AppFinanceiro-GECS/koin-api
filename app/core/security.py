@@ -142,19 +142,29 @@ def _bcrypt_password(password: str) -> bytes:
     return password.encode("utf-8")[:_BCRYPT_MAX_BYTES]
 
 
-def create_access_token(subject: str | Any, expires_delta: timedelta | None = None) -> str:
+def create_access_token(
+    subject: str | Any, expires_delta: timedelta | None = None, session_id: str | None = None
+) -> str:
     if expires_delta:
         expire = utc_now() + expires_delta
     else:
         expire = utc_now() + timedelta(minutes=settings.access_token_expire_minutes)
 
     to_encode = {"exp": _exp_timestamp(expire), "sub": str(subject), "type": "access"}
+    if session_id:
+        # família do refresh token (aparelho); a troca de senha mantém só esta sessão
+        to_encode["sid"] = session_id
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
 
 
-def create_refresh_token(subject: str | Any) -> str:
-    expire = utc_now() + timedelta(days=settings.refresh_token_expire_days)
-    to_encode = {"exp": _exp_timestamp(expire), "sub": str(subject), "type": "refresh"}
+def create_refresh_token(subject: str | Any, jti: str, expires_at: datetime) -> str:
+    """O estado (família, revogação) fica em refresh_tokens; o JWT só aponta o jti."""
+    to_encode = {
+        "exp": _exp_timestamp(expires_at),
+        "sub": str(subject),
+        "type": "refresh",
+        "jti": jti,
+    }
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
 
 
