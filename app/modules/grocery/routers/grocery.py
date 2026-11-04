@@ -470,7 +470,7 @@ async def get_necessity_analytics(
 
 
 @router.get("/insights", response_model=GroceryInsights)
-async def get_insights(
+async def get_grocery_insights(
     current_user: CurrentUser,
     db: DbSession,
     start_date: date | None = None,
