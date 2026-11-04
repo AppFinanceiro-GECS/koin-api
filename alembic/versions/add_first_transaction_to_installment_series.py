@@ -28,14 +28,14 @@ def upgrade():
     )
 
     # 2. Criar foreign key
-    op.create_foreign_key(
-        "fk_installment_series_first_transaction",
-        "installment_series",
-        "transactions",
-        ["first_transaction_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    with op.batch_alter_table("installment_series") as batch_op:
+        batch_op.create_foreign_key(
+            "fk_installment_series_first_transaction",
+            "transactions",
+            ["first_transaction_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
 
     # 3. Criar índice único para garantir que cada transação só pode ser
     # "primeira" de uma série
@@ -48,20 +48,19 @@ def upgrade():
 
     # 4. Popular com dados existentes (primeira transação de cada série por created_at)
     op.execute("""
-        UPDATE installment_series s
+        UPDATE installment_series
         SET first_transaction_id = (
             SELECT t.id FROM transactions t
-            WHERE t.installment_series_id = s.id
+            WHERE t.installment_series_id = installment_series.id
             ORDER BY t.created_at ASC
             LIMIT 1
         )
-        WHERE s.first_transaction_id IS NULL
+        WHERE first_transaction_id IS NULL
     """)
 
 
 def downgrade():
     op.drop_index("ix_installment_series_first_transaction_id", table_name="installment_series")
-    op.drop_constraint(
-        "fk_installment_series_first_transaction", "installment_series", type_="foreignkey"
-    )
+    with op.batch_alter_table("installment_series") as batch_op:
+        batch_op.drop_constraint("fk_installment_series_first_transaction", type_="foreignkey")
     op.drop_column("installment_series", "first_transaction_id")

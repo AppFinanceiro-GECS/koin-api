@@ -68,14 +68,14 @@ def upgrade():
     op.add_column("transactions", sa.Column("source_transaction_id", sa.Integer(), nullable=True))
 
     # 3. Create foreign key for source_transaction_id
-    op.create_foreign_key(
-        "fk_transactions_source_transaction",
-        "transactions",
-        "transactions",
-        ["source_transaction_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    with op.batch_alter_table("transactions") as batch_op:
+        batch_op.create_foreign_key(
+            "fk_transactions_source_transaction",
+            "transactions",
+            ["source_transaction_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
 
     # 4. Create index for faster lookups
     op.create_index(
@@ -86,7 +86,8 @@ def upgrade():
 def downgrade():
     # Remove from transactions
     op.drop_index("ix_transactions_source_transaction_id", table_name="transactions")
-    op.drop_constraint("fk_transactions_source_transaction", "transactions", type_="foreignkey")
+    with op.batch_alter_table("transactions") as batch_op:
+        batch_op.drop_constraint("fk_transactions_source_transaction", type_="foreignkey")
     op.drop_column("transactions", "source_transaction_id")
 
     # Remove income_split_rules table

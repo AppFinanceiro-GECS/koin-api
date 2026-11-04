@@ -28,6 +28,26 @@ def _create_index_if_not_exists(name: str, table: str, columns: list[str]):
     op.execute(sa.text(f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({cols})"))
 
 
+def _add_category_fk_if_not_exists(name: str, table: str, column: str):
+    """FK para categories.id com ON DELETE SET NULL; o bloco DO $$ só existe no Postgres."""
+    if op.get_bind().dialect.name != "postgresql":
+        # SQLite (make dev): base nova, a FK ainda não existe
+        with op.batch_alter_table(table) as batch_op:
+            batch_op.create_foreign_key(name, "categories", [column], ["id"], ondelete="SET NULL")
+        return
+    op.execute(
+        sa.text(f"""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '{name}') THEN
+                ALTER TABLE {table}
+                ADD CONSTRAINT {name}
+                FOREIGN KEY ({column}) REFERENCES categories(id) ON DELETE SET NULL;
+            END IF;
+        END $$;
+    """)
+    )
+
+
 def upgrade() -> None:
     # ===== RESTORE INDEXES (idempotent — skips if already exists) =====
 
@@ -69,17 +89,8 @@ def upgrade() -> None:
         AND suggested_category_id NOT IN (SELECT id FROM categories)
     """)
     )
-    # Add FK only if not exists (check pg_constraint)
-    op.execute(
-        sa.text("""
-        DO $$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_document_extractions_category') THEN
-                ALTER TABLE document_extractions
-                ADD CONSTRAINT fk_document_extractions_category
-                FOREIGN KEY (suggested_category_id) REFERENCES categories(id) ON DELETE SET NULL;
-            END IF;
-        END $$;
-    """)
+    _add_category_fk_if_not_exists(
+        "fk_document_extractions_category", "document_extractions", "suggested_category_id"
     )
     _create_index_if_not_exists(
         "ix_document_extractions_category_id", "document_extractions", ["suggested_category_id"]
@@ -93,27 +104,17 @@ def upgrade() -> None:
         AND category_id NOT IN (SELECT id FROM categories)
     """)
     )
-    op.execute(
-        sa.text("""
-        DO $$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_merchants_category') THEN
-                ALTER TABLE merchants
-                ADD CONSTRAINT fk_merchants_category
-                FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL;
-            END IF;
-        END $$;
-    """)
-    )
+    _add_category_fk_if_not_exists("fk_merchants_category", "merchants", "category_id")
     _create_index_if_not_exists("ix_merchants_category_id", "merchants", ["category_id"])
 
 
 def downgrade() -> None:
     # Remove FKs
-    op.drop_constraint("fk_merchants_category", "merchants", type_="foreignkey")
+    with op.batch_alter_table("merchants") as batch_op:
+        batch_op.drop_constraint("fk_merchants_category", type_="foreignkey")
     op.drop_index("ix_merchants_category_id", "merchants")
-    op.drop_constraint(
-        "fk_document_extractions_category", "document_extractions", type_="foreignkey"
-    )
+    with op.batch_alter_table("document_extractions") as batch_op:
+        batch_op.drop_constraint("fk_document_extractions_category", type_="foreignkey")
     op.drop_index("ix_document_extractions_category_id", "document_extractions")
 
     # Remove restored indexes

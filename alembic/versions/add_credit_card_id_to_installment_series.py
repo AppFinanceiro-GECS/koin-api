@@ -23,14 +23,14 @@ def upgrade() -> None:
     op.add_column("installment_series", sa.Column("credit_card_id", sa.Integer(), nullable=True))
 
     # Add foreign key constraint
-    op.create_foreign_key(
-        "fk_installment_series_credit_card",
-        "installment_series",
-        "credit_cards",
-        ["credit_card_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    with op.batch_alter_table("installment_series") as batch_op:
+        batch_op.create_foreign_key(
+            "fk_installment_series_credit_card",
+            "credit_cards",
+            ["credit_card_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
 
     # Add index for better query performance
     op.create_index(
@@ -40,7 +40,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("ix_installment_series_credit_card_id", "installment_series")
-    op.drop_constraint(
-        "fk_installment_series_credit_card", "installment_series", type_="foreignkey"
-    )
+    with op.batch_alter_table("installment_series") as batch_op:
+        batch_op.drop_constraint("fk_installment_series_credit_card", type_="foreignkey")
     op.drop_column("installment_series", "credit_card_id")

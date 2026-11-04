@@ -169,7 +169,8 @@ def upgrade() -> None:
     op.drop_index("ix_invoices_payment_account", table_name="credit_card_invoices")
     op.drop_index("ix_invoices_user_period", table_name="credit_card_invoices")
     op.drop_index("ix_invoices_user_status", table_name="credit_card_invoices")
-    op.drop_constraint("uq_credit_card_account", "credit_cards", type_="unique")
+    with op.batch_alter_table("credit_cards") as batch_op:
+        batch_op.drop_constraint("uq_credit_card_account", type_="unique")
     op.drop_index("ix_credit_cards_account_id", table_name="credit_cards")
     op.create_index(op.f("ix_credit_cards_account_id"), "credit_cards", ["account_id"], unique=True)
     op.drop_index("ix_debts_user_status", table_name="debts")
@@ -270,7 +271,8 @@ def downgrade() -> None:
     op.create_index("ix_debts_user_status", "debts", ["user_id", "status"], unique=False)
     op.drop_index(op.f("ix_credit_cards_account_id"), table_name="credit_cards")
     op.create_index("ix_credit_cards_account_id", "credit_cards", ["account_id"], unique=False)
-    op.create_unique_constraint("uq_credit_card_account", "credit_cards", ["account_id"])
+    with op.batch_alter_table("credit_cards") as batch_op:
+        batch_op.create_unique_constraint("uq_credit_card_account", ["account_id"])
     op.create_index(
         "ix_invoices_user_status", "credit_card_invoices", ["user_id", "status"], unique=False
     )
