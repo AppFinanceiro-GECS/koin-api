@@ -284,7 +284,13 @@ async def validate_reset_token(token: str, db: DbSession):
 
 @router.post("/reset-password/{token}", response_model=Token)
 @limiter.limit("3/minute")
-async def reset_password(request: Request, token: str, data: ResetPasswordRequest, db: DbSession):
+async def reset_password(
+    request: Request,
+    token: str,
+    data: ResetPasswordRequest,
+    db: DbSession,
+    background_tasks: BackgroundTasks,
+):
     """Redefine a senha usando o token"""
     user = await _user_for_reset(token, db)
 
@@ -302,7 +308,9 @@ async def reset_password(request: Request, token: str, data: ResetPasswordReques
     await db.commit()
 
     # Enviar notificação de alteração de senha
-    email_service.send_password_changed_notification(user_email, user_name)
+    background_tasks.add_task(
+        email_service.send_password_changed_notification, user_email, user_name
+    )
 
     # Fazer login automático
     auth_service = AuthService(db)
