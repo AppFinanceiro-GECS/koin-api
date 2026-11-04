@@ -225,6 +225,8 @@ async def test_pdf_fallback_keeps_password_and_sanitizes_primary_error(extracted
 async def test_google_retry_logs_type_without_exception_message(monkeypatch, caplog):
     provider = GoogleProvider(parse_response_fn=ResponseParser().parse)
     monkeypatch.setattr(provider, "_get_client", lambda: object())
+    # modelo alternativo coberto em test_gemini_fallback.py
+    monkeypatch.setattr(settings, "vision_model_fallback", None)
     provider.retry_delay = 0
     generate = Mock(side_effect=RuntimeError("503 " + ERROR))
     monkeypatch.setattr(provider, "_generate_content_sync", generate)

@@ -364,15 +364,20 @@ class DocumentClassifier:
 
             prompt = CLASSIFICATION_PROMPT.format(ocr_text=text_sample)
 
+            config = {
+                "temperature": 0.0,
+                "max_output_tokens": 20,  # Apenas 1 palavra
+            }
+            if settings.ai_thinking_level:
+                # raciocínio consome o teto de 20 tokens antes da resposta
+                config["thinking_config"] = {"thinking_level": settings.ai_thinking_level}
+
             # Executar em thread separada (non-blocking)
             def _call_gemini():
                 return client.models.generate_content(
                     model=settings.classifier_model,
                     contents=prompt,
-                    config={
-                        "temperature": 0.0,
-                        "max_output_tokens": 20,  # Apenas 1 palavra
-                    },
+                    config=config,
                 )
 
             response = await tracked_call(

@@ -112,6 +112,59 @@ class GoogleProvider(BaseProvider):
             config=config,
         )
 
+    def _thinking_config(self, types):
+        """Raciocínio mínimo na extração (settings.ai_thinking_level); None = padrão do modelo"""
+        if not settings.ai_thinking_level:
+            return None
+        return types.ThinkingConfig(thinking_level=settings.ai_thinking_level)
+
+    @staticmethod
+    def _is_overloaded_error(error: Exception) -> bool:
+        """503 / alta demanda: o modelo está fora, outro modelo pode responder"""
+        error_str = str(error).lower()
+        return any(code in error_str for code in ["503", "unavailable", "overloaded"])
+
+    async def _generate_with_retry(self, client, contents, config):
+        """Chama o Gemini com backoff; se o modelo continuar sobrecarregado (503),
+        repete com settings.vision_model_fallback."""
+        models = [self.model]
+        fallback = settings.vision_model_fallback
+        if fallback and fallback != self.model:
+            models.append(fallback)
+
+        for model in models:
+            for attempt in range(self.max_retries):
+                try:
+                    logger.info(
+                        "[GoogleProvider] Calling Gemini model=%s (attempt %s/%s)",
+                        model,
+                        attempt + 1,
+                        self.max_retries,
+                    )
+                    # Executa em thread separada para nao bloquear o event loop
+                    return await tracked_call(
+                        "google",
+                        model,
+                        lambda m=model: asyncio.to_thread(
+                            self._generate_content_sync, client, m, contents, config
+                        ),
+                    )
+                except AIUnavailable:
+                    raise
+                except Exception as e:
+                    logger.error(
+                        "gemini_call_failed model=%s error_type=%s", model, type(e).__name__
+                    )
+                    if self._is_retryable_error(e) and attempt < self.max_retries - 1:
+                        wait_time = self.retry_delay * (2**attempt)
+                        logger.info("[GoogleProvider] Retrying in %ss...", wait_time)
+                        await asyncio.sleep(wait_time)
+                        continue
+                    if model != models[-1] and self._is_overloaded_error(e):
+                        logger.warning("gemini_fallback from=%s to=%s", model, models[-1])
+                        break
+                    raise
+
     def _upload_file_sync(self, client, file_path: str, mime_type: str):
         """Upload sincrono de arquivo (executado em thread separada)"""
         return client.files.upload(
@@ -135,34 +188,11 @@ class GoogleProvider(BaseProvider):
         config = types.GenerateContentConfig(
             temperature=0.1,
             max_output_tokens=16000,
+            thinking_config=self._thinking_config(types),
         )
 
-        last_error = None
-        for attempt in range(self.max_retries):
-            try:
-                # Executa em thread separada para nao bloquear o event loop
-                response = await tracked_call(
-                    "google",
-                    self.model,
-                    lambda: asyncio.to_thread(
-                        self._generate_content_sync, client, self.model, contents, config
-                    ),
-                )
-                return self._parse_response(response.text)
-
-            except AIUnavailable:
-                raise
-
-            except Exception as e:
-                last_error = e
-                if self._is_retryable_error(e) and attempt < self.max_retries - 1:
-                    wait_time = self.retry_delay * (2**attempt)
-                    await asyncio.sleep(wait_time)
-                    continue
-                else:
-                    raise
-
-        return {"items": [], "error": f"Falha apos {self.max_retries} tentativas: {last_error}"}
+        response = await self._generate_with_retry(client, contents, config)
+        return self._parse_response(response.text)
 
     async def extract_from_pdf(
         self, pdf_content: bytes, filename: str = "document.pdf", password: str | None = None
@@ -257,6 +287,7 @@ Extraia TODAS as transações do documento PDF anexado."""
                     temperature=0.1,
                     response_mime_type="application/json",
                     response_schema=self.response_schema,
+                    thinking_config=self._thinking_config(types),
                 )
             else:
                 if use_native and password:
@@ -305,43 +336,12 @@ NÃO retorne apenas um array! Retorne um objeto completo."""
                     temperature=0.1,
                     response_mime_type="application/json",
                     response_schema=self.response_schema,
+                    thinking_config=self._thinking_config(types),
                 )
 
-            last_error = None
-            for attempt in range(self.max_retries):
-                try:
-                    logger.info(
-                        "[GoogleProvider] Calling Gemini API (attempt %s/%s)...",
-                        attempt + 1,
-                        self.max_retries,
-                    )
-                    # Executa em thread separada para nao bloquear o event loop
-                    response = await tracked_call(
-                        "google",
-                        self.model,
-                        lambda: asyncio.to_thread(
-                            self._generate_content_sync, client, self.model, contents, config
-                        ),
-                    )
-
-                    response_text = response.text if response else ""
-                    return self._parse_response(response_text)
-
-                except AIUnavailable:
-                    raise
-
-                except Exception as e:
-                    last_error = e
-                    logger.error("extract_from_pdf_failed error_type=%s", type(e).__name__)
-                    if self._is_retryable_error(e) and attempt < self.max_retries - 1:
-                        wait_time = self.retry_delay * (2**attempt)
-                        logger.info("[GoogleProvider] Retrying in %ss...", wait_time)
-                        await asyncio.sleep(wait_time)
-                        continue
-                    else:
-                        raise
-
-            return {"items": [], "error": f"Falha apos {self.max_retries} tentativas: {last_error}"}
+            response = await self._generate_with_retry(client, contents, config)
+            response_text = response.text if response else ""
+            return self._parse_response(response_text)
 
         finally:
             if temp_file and os.path.exists(temp_file):
@@ -372,43 +372,12 @@ NÃO retorne apenas um array! Retorne um objeto completo."""
             max_output_tokens=32000,  # Increased for large receipts with many items
             response_mime_type="application/json",
             response_schema=self.response_schema,
+            thinking_config=self._thinking_config(types),
         )
 
-        last_error = None
-        for attempt in range(self.max_retries):
-            try:
-                logger.info(
-                    "[GoogleProvider] Calling Gemini API (attempt %s/%s)...",
-                    attempt + 1,
-                    self.max_retries,
-                )
-                # Executa em thread separada para nao bloquear o event loop
-                response = await tracked_call(
-                    "google",
-                    self.model,
-                    lambda: asyncio.to_thread(
-                        self._generate_content_sync, client, self.model, parts, config
-                    ),
-                )
-
-                response_text = response.text if response else ""
-                return self._parse_response(response_text)
-
-            except AIUnavailable:
-                raise
-
-            except Exception as e:
-                last_error = e
-                logger.error("extract_multi_page_failed error_type=%s", type(e).__name__)
-                if self._is_retryable_error(e) and attempt < self.max_retries - 1:
-                    wait_time = self.retry_delay * (2**attempt)
-                    logger.info("[GoogleProvider] Retrying in %ss...", wait_time)
-                    await asyncio.sleep(wait_time)
-                    continue
-                else:
-                    raise
-
-        return {"items": [], "error": f"Falha apos {self.max_retries} tentativas: {last_error}"}
+        response = await self._generate_with_retry(client, parts, config)
+        response_text = response.text if response else ""
+        return self._parse_response(response_text)
 
     async def _call_httpx(self, image_content: bytes, mime_type: str) -> dict:
         """Fallback: Chama Google Gemini API via httpx"""

@@ -55,6 +55,17 @@ class Settings(BaseSettings):
     # Trocar de modelo é só mudar a variável de ambiente; nenhum outro lugar do código fixa o nome.
     vision_model: str = "gemini-3.5-flash-lite"  # extração de faturas e cupons (imagem/PDF)
     classifier_model: str = "gemini-3.5-flash-lite"  # tipo de documento e intenção do chat
+    # Usado quando o vision_model responde 503 (sobrecarga) depois das tentativas. Vazio desliga.
+    # Precisa de preço em config/ai_prices.json (o alias "-latest" não tem preço publicado).
+    vision_model_fallback: str | None = "gemini-3.1-flash-lite"
+    # Raciocínio na extração só custa tokens. Os 3.x recusam thinking_budget=0 (400
+    # INVALID_ARGUMENT) e aceitam thinking_level; vazio = padrão do modelo.
+    ai_thinking_level: str | None = "minimal"
+
+    @field_validator("vision_model_fallback", "ai_thinking_level", mode="before")
+    @classmethod
+    def empty_optional_ai_setting(cls, value):
+        return None if value == "" else value
 
     ai_prices_file: str = "config/ai_prices.json"
     ai_daily_budget_usd: Decimal | None = Field(default=None, ge=0)
