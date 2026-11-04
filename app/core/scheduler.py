@@ -91,6 +91,16 @@ async def task_retry_waiting_documents():
         logger.exception(f"Error retrying waiting documents: {e}")
 
 
+async def task_purge_expired_documents():
+    from app.modules.documents.services.retention import purge_expired_documents
+
+    try:
+        async with async_session_maker() as session:
+            await purge_expired_documents(session)
+    except Exception as e:
+        logger.exception(f"Error purging expired documents: {e}")
+
+
 # ===== Alert Tasks =====
 
 
@@ -483,6 +493,13 @@ JOBS = [
         task_retry_waiting_documents,
         IntervalTrigger(minutes=5),
         "retry_waiting_documents",
+    ),
+    # Retenção das faturas enviadas (#50) — diário, fora do horário de uso
+    (
+        "documents",
+        task_purge_expired_documents,
+        CronTrigger(hour=3, minute=30),
+        "purge_expired_documents",
     ),
     # Automation tasks
     (
