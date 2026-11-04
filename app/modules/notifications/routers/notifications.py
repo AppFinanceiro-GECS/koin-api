@@ -53,7 +53,7 @@ async def get_unread_count(
 
 
 @router.get("/summary", response_model=NotificationSummary)
-async def get_summary(
+async def get_notifications_summary(
     current_user: CurrentUser,
     db: DbSession,
 ):
