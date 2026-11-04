@@ -41,8 +41,13 @@ jobs:
         run: ruff check .
       - name: Format check (ruff format)
         run: ruff format --check .
+      # Piso de cobertura (#28): começou em 48%; suba o piso quando a cobertura subir (#40)
       - name: Run tests
-        run: pytest tests/ -v
+        run: |
+          set -o pipefail
+          pytest tests/ -v --cov=app --cov-report=term --cov-fail-under=45 | tee pytest.out
+          echo "### Cobertura" >> "$GITHUB_STEP_SUMMARY"
+          grep '^TOTAL' pytest.out | awk '{print "Total: **" $NF "** (piso 45%)"}' >> "$GITHUB_STEP_SUMMARY"
         env:
           DATABASE_URL: sqlite+aiosqlite:///./test.db
           SECRET_KEY: test-secret-key
@@ -142,6 +147,15 @@ jobs:
         run: docker compose up -d --build --wait --wait-timeout 180
       - name: Health check
         run: curl -fsS http://localhost:8000/health
+      # Pacotes do sistema da imagem (as libs Python já passam pelo pip-audit).
+      # Bloqueia crítica com correção disponível; alta vai para o resumo do job.
+      - name: Scan da imagem (Trivy)
+        run: |
+          trivy() { docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache aquasec/trivy:0.57.0 "$@"; }
+          trivy image --quiet --ignore-unfixed --severity HIGH,CRITICAL --format table koin-api:local \
+            | tee trivy.txt
+          { echo '### Trivy (alta e crítica com correção)'; echo '```'; cat trivy.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          trivy image --quiet --ignore-unfixed --severity CRITICAL --exit-code 1 --skip-db-update koin-api:local
       - name: Logs on failure
         if: failure()
         run: docker compose logs
@@ -274,6 +288,25 @@ jobs:
             sleep 5
           done
           exit 1
+
+  smoke-e2e:
+    name: Smoke E2E (homologação)
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: homologacao
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install httpx
+      # Usuário de QA da hml nos secrets do environment homologacao; sem eles o passo é pulado
+      - name: Fluxo principal contra a hml
+        env:
+          SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+        run: python scripts/smoke_e2e.py "${{ vars.PUBLIC_URL }}"
 
   release:
     name: Release (tag vX.Y.Z)
