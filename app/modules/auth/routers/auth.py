@@ -164,7 +164,7 @@ async def register_via_invitation(
     invitation = result.scalar_one_or_none()
 
     if not invitation:
-        raise HTTPException(status_code=404, detail="Convite nao encontrado")
+        raise HTTPException(status_code=404, detail="Convite não encontrado")
 
     # Verificar validade
     if utc_now() > invitation.expires_at:
@@ -186,7 +186,7 @@ async def register_via_invitation(
     # Verificar se email ja existe
     existing = await db.scalar(select(User).where(User.email == account_email))
     if existing:
-        raise HTTPException(status_code=400, detail="Email ja cadastrado")
+        raise HTTPException(status_code=400, detail="Email já cadastrado")
 
     # Validar força da senha
     validate_password_or_raise(data.password)

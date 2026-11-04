@@ -233,7 +233,7 @@ class TransactionService:
             if not series:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Serie de parcelas nao encontrada",
+                    detail="Série de parcelas não encontrada",
                 )
 
             # Verificar se existe parcela projetada para confirmar
@@ -622,7 +622,7 @@ class TransactionService:
             if not document:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Documento nao encontrado",
+                    detail="Documento não encontrado",
                 )
 
             # Verificar idempotencia - tres verificacoes:
@@ -642,7 +642,7 @@ class TransactionService:
                 if existing_same_doc.scalar_one_or_none():
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
-                        detail=f"Item ja adicionado: {data.merchant_name}",
+                        detail=f"Item já adicionado: {data.merchant_name}",
                     )
 
                 # Verificacao 1b: Mesmo documento, descricao fuzzy (ex: "79SLS3754156" vs "795LS3754156 01/05 - Parcela 3/5")
@@ -658,7 +658,7 @@ class TransactionService:
                     ):
                         raise HTTPException(
                             status_code=status.HTTP_409_CONFLICT,
-                            detail=f"Item ja adicionado (similar): {data.merchant_name}",
+                            detail=f"Item já adicionado (similar): {data.merchant_name}",
                         )
 
                 # Verificacao 2: Qualquer documento do usuario com mesmo description + amount + date
@@ -674,7 +674,7 @@ class TransactionService:
                 if existing_tx:
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
-                        detail=f"Transacao ja existe: {data.merchant_name} - R$ {data.amount:.2f} em {data.date.strftime('%d/%m/%Y')}",
+                        detail=f"Transação já existe: {data.merchant_name} - R$ {data.amount:.2f} em {data.date.strftime('%d/%m/%Y')}",
                     )
 
         merchant_id = None
@@ -788,7 +788,7 @@ class TransactionService:
                 if not series:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
-                        detail="Serie de parcelas nao encontrada",
+                        detail="Série de parcelas não encontrada",
                     )
 
                 result["series"] = series
@@ -832,7 +832,7 @@ class TransactionService:
                     if not data.force_duplicate:
                         raise HTTPException(
                             status_code=status.HTTP_409_CONFLICT,
-                            detail=f"Parcela {data.installment_current}/{data.installment_total} ja confirmada em {existing_installment.date.strftime('%d/%m/%Y')}",
+                            detail=f"Parcela {data.installment_current}/{data.installment_total} já confirmada em {existing_installment.date.strftime('%d/%m/%Y')}",
                         )
                     # Se force_duplicate, criar nova transacao
                     transaction = await installment_service.create_installment_transaction(
@@ -1356,7 +1356,7 @@ class TransactionService:
         if not transaction:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Transacao nao encontrada",
+                detail="Transação não encontrada",
             )
 
         update_data = data.model_dump(exclude_unset=True)
@@ -1392,7 +1392,7 @@ class TransactionService:
                     select(Account).where(Account.id == account_id, Account.user_id == user.id)
                 )
             if not result.scalar_one_or_none():
-                raise HTTPException(status_code=400, detail="Conta nao encontrada")
+                raise HTTPException(status_code=400, detail="Conta não encontrada")
 
         # Handle enum field: type
         if "type" in update_data and update_data["type"]:
@@ -1414,7 +1414,7 @@ class TransactionService:
                 )
             )
             if not result.scalar_one_or_none():
-                raise HTTPException(status_code=400, detail="Fatura nao encontrada")
+                raise HTTPException(status_code=400, detail="Fatura não encontrada")
 
         # Se a transação é de cartão de crédito mas não tem invoice_id, vincular automaticamente
         # Isso corrige transações antigas que foram criadas sem fatura
@@ -1617,7 +1617,7 @@ class TransactionService:
         if not transaction:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Transacao nao encontrada",
+                detail="Transação não encontrada",
             )
 
         result = {

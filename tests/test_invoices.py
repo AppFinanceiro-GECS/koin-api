@@ -111,7 +111,7 @@ async def test_pagar_com_conta_cartao_retorna_400(
         )
 
     assert exc_info.value.status_code == 400
-    assert "cartao" in exc_info.value.detail.lower()
+    assert "cartão" in exc_info.value.detail.lower()
 
 
 @pytest.mark.asyncio

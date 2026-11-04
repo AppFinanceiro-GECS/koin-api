@@ -5,14 +5,18 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi.errors import RateLimitExceeded
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .core.ai_models import check_ai_models
 from .core.config import settings
 from .core.database import engine
+from .core.errors import register_error_handlers
 from .core.modules import enabled_modules
-from .core.rate_limit import limiter, rate_limit_exceeded_handler
+from .core.rate_limit import limiter
+from .core.request_context import RequestContextMiddleware, RequestIdLogFilter
+from .core.version import API_VERSION, COMMIT
 from .routers import api_router
 
 # Configuracao do novo log estruturado
@@ -20,9 +24,14 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 logging.basicConfig(
     level=LOG_LEVEL,
-    format='time="%(asctime)s" level=%(levelname)s module=%(module)s msg="%(message)s"',
+    format=(
+        'time="%(asctime)s" level=%(levelname)s module=%(module)s '
+        'request_id=%(request_id)s msg="%(message)s"'
+    ),
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+for _handler in logging.getLogger().handlers:
+    _handler.addFilter(RequestIdLogFilter())
 
 logger = logging.getLogger(__name__)
 
@@ -77,13 +86,15 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     description="API para controle financeiro pessoal inteligente",
-    version="0.1.0",
+    version=API_VERSION,
     lifespan=lifespan,
 )
 
 # Rate limiting
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+# Erros no formato problem+json, com code estável e request_id (#41)
+register_error_handlers(app)
 
 # Headers de segurança (adicionar antes do CORS)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -119,22 +130,51 @@ app.add_middleware(
     allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-API-Key"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "X-API-Key",
+        "X-Request-ID",
+    ],
+    expose_headers=["X-Request-ID", "X-API-Version"],
 )
+
+# Por último = mais externo: toda resposta, inclusive erro e preflight, leva o id
+app.add_middleware(RequestContextMiddleware)
 
 # Rotas
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 
 
+@app.get("/health/live")
+async def liveness():
+    """O processo responde. Usado pelo healthcheck do Docker (não depende do banco)."""
+    return {"status": "ok"}
+
+
 @app.get("/health")
 async def health_check():
+    """Prontidão: banco acessível. 503 quando o banco cai, para o monitor alertar."""
     from .core.scheduler import scheduler
 
-    return {
-        "status": "ok",
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception as e:
+        logger.error("health_db_failed error_type=%s", type(e).__name__)
+        db_ok = False
+
+    body = {
+        "status": "ok" if db_ok else "degraded",
+        "db": "ok" if db_ok else "error",
+        "version": API_VERSION,
+        "commit": COMMIT,
         "environment": settings.environment,
         "scheduler_active": scheduler.running,
         "scheduler_jobs": len(scheduler.get_jobs()) if scheduler.running else 0,
         # o app esconde as telas dos módulos desligados (#42)
         "modules": sorted(enabled_modules()),
     }
+    return JSONResponse(body, status_code=200 if db_ok else 503)

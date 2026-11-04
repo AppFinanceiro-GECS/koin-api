@@ -1,9 +1,7 @@
 """Rate limiting configuration using slowapi"""
 
 from fastapi import Request
-from fastapi.responses import JSONResponse
 from slowapi import Limiter
-from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 
@@ -24,14 +22,3 @@ limiter = Limiter(
     storage_uri="memory://",
     default_limits=["100/minute"],
 )
-
-
-def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
-    """Custom handler for rate limit exceeded"""
-    return JSONResponse(
-        status_code=429,
-        content={
-            "detail": "Muitas requisições. Tente novamente em alguns minutos.",
-            "retry_after": exc.detail.split("per")[0].strip() if exc.detail else "1 minute",
-        },
-    )
