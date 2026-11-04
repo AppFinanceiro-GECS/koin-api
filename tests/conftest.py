@@ -1,3 +1,5 @@
+import os
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -15,8 +17,9 @@ from app.models.user import User
 
 pytest_plugins = ["tests.live_support"]
 
-# Use in-memory SQLite for tests
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# SQLite em memória por padrão; o CI também roda contra Postgres (#28), onde aparecem
+# bugs que o SQLite esconde (ex.: lazy-load em sessão assíncrona, #33)
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
 
 @pytest_asyncio.fixture(scope="function")
