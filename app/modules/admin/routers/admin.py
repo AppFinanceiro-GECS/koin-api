@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -420,7 +421,8 @@ async def create_license(
 
     # Enviar email de convite
     invite_url = invite_url_for(invitation.token)
-    email_sent = email_service.send_invitation(
+    email_sent = await asyncio.to_thread(
+        email_service.send_invitation,
         to_email=data.owner_email,
         invite_url=invite_url,
         inviter_name=current_user.name,
@@ -634,7 +636,8 @@ async def resend_license_invitation(
 
     # Enviar email
     invite_url = invite_url_for(invitation.token)
-    email_sent = email_service.send_invitation(
+    email_sent = await asyncio.to_thread(
+        email_service.send_invitation,
         to_email=invitation.email,
         invite_url=invite_url,
         inviter_name=current_user.name,
@@ -731,7 +734,8 @@ async def create_user(
 
     # Send invitation email
     invite_url = invite_url_for(invitation.token)
-    email_sent = email_service.send_invitation(
+    email_sent = await asyncio.to_thread(
+        email_service.send_invitation,
         to_email=data.email,
         invite_url=invite_url,
         inviter_name=current_user.name,
@@ -860,16 +864,22 @@ async def send_password_reset(
 
     # Enviar email
     reset_url = f"{settings.frontend_url}/reset-password/{reset_token}"
-    email_sent = email_service.send_password_reset(
+    email_sent = await asyncio.to_thread(
+        email_service.send_password_reset,
         to_email=user.email,
         reset_url=reset_url,
         user_name=user.name,
     )
 
     if not email_sent:
-        raise HTTPException(status_code=500, detail="Falha ao enviar email")
+        # o link vale 1 h; o admin pode pedir de novo quando o e-mail voltar
+        logger.warning("email_delivery_failed")
+        return {
+            "message": "Não foi possível enviar o e-mail de redefinição. Tente de novo.",
+            "email_sent": False,
+        }
 
-    return {"message": "Email de redefinicao de senha enviado com sucesso"}
+    return {"message": "Email de redefinicao de senha enviado com sucesso", "email_sent": True}
 
 
 # ========== Invitations ==========
@@ -965,7 +975,8 @@ async def create_invitation(
 
     # Enviar email
     invite_url = invite_url_for(invitation.token)
-    email_sent = email_service.send_invitation(
+    email_sent = await asyncio.to_thread(
+        email_service.send_invitation,
         to_email=data.email,
         invite_url=invite_url,
         inviter_name=current_user.name,
@@ -1026,7 +1037,8 @@ async def resend_invitation(
 
     # Enviar email novamente
     invite_url = invite_url_for(invitation.token)
-    email_sent = email_service.send_invitation(
+    email_sent = await asyncio.to_thread(
+        email_service.send_invitation,
         to_email=invitation.email,
         invite_url=invite_url,
         inviter_name=invitation.invited_by.name if invitation.invited_by else "Administrador",

@@ -4,7 +4,7 @@ Rotas de usuario: perfil, alteracao de senha, exportacao e exclusao (LGPD).
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -50,6 +50,7 @@ async def change_password(
     current_user: CurrentUser,
     db: DbSession,
     credentials: BearerCredentials,
+    background_tasks: BackgroundTasks,
 ):
     """Altera a senha do usuário autenticado e encerra as sessões dos outros aparelhos"""
     # Verificar senha atual
@@ -66,7 +67,10 @@ async def change_password(
     await db.commit()
 
     # Enviar notificação de alteração de senha
-    email_service.send_password_changed_notification(current_user.email, current_user.name)
+    # depois da resposta: o SMTP não segura a requisição nem o event loop
+    background_tasks.add_task(
+        email_service.send_password_changed_notification, current_user.email, current_user.name
+    )
 
     return {"message": "Senha alterada com sucesso"}
 

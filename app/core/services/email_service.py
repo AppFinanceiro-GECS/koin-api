@@ -200,7 +200,8 @@ class EmailService:
             msg["To"] = to_email
 
             # Cabeçalhos para melhorar entregabilidade
-            msg["Message-ID"] = make_msgid(domain="koin.app")
+            # domínio do remetente: Message-ID de outro domínio pesa contra no filtro de spam
+            msg["Message-ID"] = make_msgid(domain=self.from_email.rsplit("@", 1)[-1])
             msg["Date"] = formatdate(localtime=True)
             msg["Reply-To"] = self.from_email
             msg["X-Mailer"] = "Koin Mail Service"

@@ -3,6 +3,7 @@ Rotas para gerenciamento de familia/household.
 Permite ao owner convidar membros e gerenciar a familia.
 """
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, status
@@ -216,7 +217,8 @@ async def invite_member(
 
     # Enviar email
     invite_url = f"{settings.frontend_url}/invite/{invitation.token}"
-    email_sent = email_service.send_invitation(
+    email_sent = await asyncio.to_thread(
+        email_service.send_invitation,
         to_email=data.email,
         invite_url=invite_url,
         inviter_name=current_user.name,
@@ -320,7 +322,8 @@ async def resend_family_invitation(
 
     # Enviar email novamente
     invite_url = f"{settings.frontend_url}/invite/{invitation.token}"
-    email_sent = email_service.send_invitation(
+    email_sent = await asyncio.to_thread(
+        email_service.send_invitation,
         to_email=invitation.email,
         invite_url=invite_url,
         inviter_name=current_user.name,
