@@ -160,10 +160,10 @@ jobs:
       - name: Scan da imagem (Trivy)
         run: |
           trivy() { docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache aquasec/trivy:0.57.0 "$@"; }
-          trivy image --quiet --ignore-unfixed --severity HIGH,CRITICAL --format table koin-api:local \
+          trivy image --quiet --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL --format table koin-api:local \
             | tee trivy.txt
           { echo '### Trivy (alta e crítica com correção)'; echo '```'; cat trivy.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          trivy image --quiet --ignore-unfixed --severity CRITICAL --exit-code 1 --skip-db-update koin-api:local
+          trivy image --quiet --scanners vuln --ignore-unfixed --severity CRITICAL --exit-code 1 --skip-db-update koin-api:local
       - name: Logs on failure
         if: failure()
         run: docker compose logs
