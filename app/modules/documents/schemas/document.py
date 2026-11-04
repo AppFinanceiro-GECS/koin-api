@@ -152,6 +152,9 @@ class DocumentResponse(BaseModel):
     status: DocumentStatus
     document_type: DocumentType | None
     error_message: str | None
+    # RN016: o app decide pelo código; next_retry_at diz quando a leitura volta a tentar
+    error_code: str | None = None
+    next_retry_at: datetime | None = None
     created_at: datetime
     processed_at: datetime | None
 

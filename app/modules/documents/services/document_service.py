@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import logging
 import os
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -21,6 +21,17 @@ from app.models.credit_card import CreditCard
 from app.models.document import Document, DocumentStatus
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.modules.documents.services.ai_failures import (
+    AI_QUOTA_EXHAUSTED,
+    FILE_MISSING,
+    MAX_AI_ATTEMPTS,
+    PASSWORD_REQUIRED,
+    PROCESSING_TIMEOUT,
+    Failure,
+    ai_circuit,
+    classify,
+    next_retry_at,
+)
 from app.modules.documents.services.upload_files import prepare_upload
 
 logger = logging.getLogger(__name__)
@@ -40,6 +51,71 @@ def _read_file_sync(file_path: str) -> bytes:
     """Leitura sincrona de arquivo - para uso com asyncio.to_thread"""
     with open(file_path, "rb") as f:
         return f.read()
+
+
+# Teto da extração inteira (retries e modelo alternativo inclusos); cada chamada ao
+# Gemini tem o próprio timeout no GoogleProvider. Acima disso vira ai_busy e volta à fila.
+EXTRACTION_TIMEOUT_SECONDS = 300
+# processing mais antigo que isso = processo reiniciado no meio (#37)
+STALE_PROCESSING = timedelta(minutes=15)
+MAX_STALE_ATTEMPTS = 3
+
+
+def mark_processing(document: Document) -> None:
+    document.status = DocumentStatus.PROCESSING
+    document.processing_started_at = utc_now()
+    document.next_retry_at = None
+
+
+def mark_completed(document: Document) -> None:
+    document.status = DocumentStatus.COMPLETED
+    document.error_code = None
+    document.error_message = None
+    document.next_retry_at = None
+    document.processing_started_at = None
+    ai_circuit.record_success()
+
+
+def mark_failure(
+    document: Document, error: BaseException | str | Failure | None, retry: bool = True
+) -> Failure:
+    """RN016: falha da IA vira waiting_ai com nova tentativa; o resto, failed.
+    error_message recebe só o texto do catálogo; o erro cru nunca sai da API.
+    retry=False quando não há como reprocessar sozinho (lote de imagens)."""
+    failure = error if isinstance(error, Failure) else classify(error)
+    document.error_code = failure.code
+    document.error_message = failure.message
+    document.processing_started_at = None
+    document.next_retry_at = None
+
+    if failure.retry_after is None or not retry:
+        document.status = DocumentStatus.FAILED
+    else:
+        document.attempts = (document.attempts or 0) + 1
+        if document.attempts >= MAX_AI_ATTEMPTS:
+            document.status = DocumentStatus.FAILED
+        else:
+            document.status = DocumentStatus.WAITING_AI
+            document.next_retry_at = next_retry_at(failure, document.attempts)
+            ai_circuit.record(failure, document.next_retry_at)
+
+    logger.warning(
+        "document_failure document_id=%s code=%s status=%s attempts=%s",
+        document.id,
+        failure.code,
+        document.status,
+        document.attempts,
+    )
+    return failure
+
+
+def wait_for_ai(document: Document) -> None:
+    """Disjuntor aberto: guarda o documento sem chamar a IA"""
+    document.status = DocumentStatus.WAITING_AI
+    document.error_code = AI_QUOTA_EXHAUSTED.code
+    document.error_message = AI_QUOTA_EXHAUSTED.message
+    document.next_retry_at = ai_circuit.paused_until
+    document.processing_started_at = None
 
 
 async def process_document_background(
@@ -79,8 +155,7 @@ async def process_document_background(
             result = await db.execute(select(Document).where(Document.id == document_id))
             document = result.scalar_one_or_none()
             if document:
-                document.status = DocumentStatus.FAILED
-                document.error_message = f"Erro ao ler arquivo: {e}"
+                mark_failure(document, FILE_MISSING)
                 await db.commit()
         return
 
@@ -106,8 +181,13 @@ async def process_document_background(
                 await db.commit()
                 return
 
+            if ai_circuit.is_open():
+                wait_for_ai(document)
+                await db.commit()
+                return
+
             # Processar documento
-            document.status = DocumentStatus.PROCESSING
+            mark_processing(document)
             await db.commit()
 
             from app.modules.documents.services.llm_ocr_service import LLMOCRService
@@ -118,17 +198,16 @@ async def process_document_background(
                 llm_service = LLMOCRService(provider="google", model=settings.vision_model)
 
             with usage_context(db, user_id, document_id):
-                extraction_data = await llm_service.extract_from_image(
-                    file_bytes, mime_type, filename=filename, password=password
+                extraction_data = await asyncio.wait_for(
+                    llm_service.extract_from_image(
+                        file_bytes, mime_type, filename=filename, password=password
+                    ),
+                    timeout=EXTRACTION_TIMEOUT_SECONDS,
                 )
 
             # Verificar se houve erro
             if extraction_data is None or extraction_data.get("error"):
-                document.status = DocumentStatus.FAILED
-                document.error_message = (
-                    extraction_data.get("error") if extraction_data else "Extracao falhou"
-                )
-                logger.error("document_processing_failed document_id=%s", document_id)
+                mark_failure(document, extraction_data.get("error") if extraction_data else None)
             else:
                 # Validar se a soma dos itens bate com o total da fatura
                 if extraction_data.get("document_type") == "fatura_cartao":
@@ -150,7 +229,7 @@ async def process_document_background(
                                 "message": f"A soma das transações (R$ {items_sum:.2f}) não bate com o total da fatura (R$ {total_amount:.2f}). Diferença: R$ {difference:.2f}",
                             }
 
-                document.status = DocumentStatus.COMPLETED
+                mark_completed(document)
                 document.document_type = extraction_data.get("document_type")
                 # Salvar dados extraidos para recuperacao posterior
                 document.extracted_data = extraction_data
@@ -174,8 +253,7 @@ async def process_document_background(
                 result = await db.execute(select(Document).where(Document.id == document_id))
                 document = result.scalar_one_or_none()
                 if document:
-                    document.status = DocumentStatus.FAILED
-                    document.error_message = str(e)
+                    mark_failure(document, e)
                     await db.commit()
             except Exception:
                 pass
@@ -184,6 +262,89 @@ async def process_document_background(
             # Cleanup explicito para liberar memoria
             del file_bytes
             gc.collect()
+
+
+async def retry_waiting_documents(limit: int = 5) -> int:
+    """Job do scheduler (RN016/#37): solta processing preso e reprocessa waiting_ai vencido.
+
+    Devolve quantos documentos foram reprocessados. Para no primeiro sinal de cota
+    esgotada (disjuntor aberto) para não martelar a IA.
+    """
+    now = utc_now()
+    async with async_session_maker() as db:
+        # processing antigo = API reiniciou no meio; created_at cobre linhas de antes da #37
+        stale = (
+            await db.execute(
+                select(Document).where(
+                    Document.status == DocumentStatus.PROCESSING,
+                    func.coalesce(Document.processing_started_at, Document.created_at)
+                    < now - STALE_PROCESSING,
+                )
+            )
+        ).scalars()
+        for document in stale:
+            document.attempts = (document.attempts or 0) + 1
+            if document.attempts >= MAX_STALE_ATTEMPTS:
+                mark_failure(document, PROCESSING_TIMEOUT)
+            else:
+                document.status = DocumentStatus.WAITING_AI
+                document.next_retry_at = now
+                document.processing_started_at = None
+            logger.warning(
+                "document_stale_processing document_id=%s attempts=%s",
+                document.id,
+                document.attempts,
+            )
+        await db.commit()
+
+        if ai_circuit.is_open(now):
+            return 0
+        due = (
+            await db.execute(
+                select(
+                    Document.id,
+                    Document.user_id,
+                    Document.file_path,
+                    Document.mime_type,
+                    Document.original_filename,
+                )
+                .where(
+                    Document.status == DocumentStatus.WAITING_AI,
+                    Document.next_retry_at <= now,
+                )
+                .order_by(Document.next_retry_at)
+                .limit(limit)
+            )
+        ).all()
+
+    processed = 0
+    for doc_id, user_id, file_path, mime_type, filename in due:
+        if ai_circuit.is_open():
+            break
+        problem = await _unprocessable_without_user(file_path, mime_type)
+        if problem is not None:
+            async with async_session_maker() as db:
+                document = await db.get(Document, doc_id)
+                if document:
+                    mark_failure(document, problem)
+                    await db.commit()
+            continue
+        await process_document_background(doc_id, user_id, file_path, mime_type, filename)
+        processed += 1
+    return processed
+
+
+async def _unprocessable_without_user(file_path: str, mime_type: str) -> Failure | None:
+    """O job não tem a senha do PDF nem como recuperar arquivo apagado"""
+    if not os.path.exists(file_path):
+        return FILE_MISSING
+    if mime_type == "application/pdf":
+        from app.modules.documents.services.pdf_converter import check_pdf_needs_password
+
+        content = await asyncio.to_thread(_read_file_sync, file_path)
+        if check_pdf_needs_password(content):
+            return PASSWORD_REQUIRED
+    return None
 
 
 class DocumentService:
@@ -794,7 +955,7 @@ class DocumentService:
             logger.info(
                 "[DOC_SVC] _process_batch_images: id=%s, num_images=%s", document.id, len(images)
             )
-            document.status = DocumentStatus.PROCESSING
+            mark_processing(document)
             await self.db.flush()
 
             # Usar LLM com visao para processar multiplas imagens
@@ -814,11 +975,10 @@ class DocumentService:
             items_count = len(result.get("items", [])) if result else 0
 
             if result is None or (not result.get("items") and result.get("error")):
-                document.status = DocumentStatus.FAILED
-                document.error_message = result.get("error") if result else "Extracao falhou"
-                logger.error("document_processing_failed document_id=%s", document.id)
+                # várias imagens num documento só: o job não tem como reprocessar
+                mark_failure(document, result.get("error") if result else None, retry=False)
             else:
-                document.status = DocumentStatus.COMPLETED
+                mark_completed(document)
                 logger.info(
                     "document_processing_completed document_id=%s item_count=%s",
                     document.id,
@@ -846,8 +1006,7 @@ class DocumentService:
                 type(e).__name__,
             )
 
-            document.status = DocumentStatus.FAILED
-            document.error_message = str(e)
+            mark_failure(document, e, retry=False)
             await self.db.flush()
             await self.db.refresh(document)
             return None
@@ -934,21 +1093,30 @@ class DocumentService:
             password: Optional password for protected PDFs
         """
         try:
-            document.status = DocumentStatus.PROCESSING
+            if ai_circuit.is_open():
+                wait_for_ai(document)
+                await self.db.flush()
+                await self.db.refresh(document)
+                return None
+
+            mark_processing(document)
+            document.error_message = None
             await self.db.flush()
 
             # Extrair dados com LLM
-            extraction_data = await self._extract_data(document, content, password)
+            extraction_data = await asyncio.wait_for(
+                self._extract_data(document, content, password),
+                timeout=EXTRACTION_TIMEOUT_SECONDS,
+            )
             items_count = len(extraction_data.get("items", [])) if extraction_data else 0
 
-            # Se houve erro na extracao, marcar como falha
+            # Se houve erro na extracao, marcar como falha (o _extract_data deixa o erro cru)
             if extraction_data is None or (
                 not extraction_data.get("items") and document.error_message
             ):
-                document.status = DocumentStatus.FAILED
-                logger.error("document_processing_failed document_id=%s", document.id)
+                mark_failure(document, document.error_message)
             else:
-                document.status = DocumentStatus.COMPLETED
+                mark_completed(document)
                 logger.info(
                     "document_processing_completed document_id=%s item_count=%s",
                     document.id,
@@ -971,8 +1139,7 @@ class DocumentService:
                 type(e).__name__,
             )
 
-            document.status = DocumentStatus.FAILED
-            document.error_message = str(e)
+            mark_failure(document, e)
             await self.db.flush()
             await self.db.refresh(document)
             return None

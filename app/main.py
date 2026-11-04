@@ -17,6 +17,7 @@ from .core.modules import enabled_modules
 from .core.rate_limit import limiter
 from .core.request_context import RequestContextMiddleware, RequestIdLogFilter
 from .core.version import API_VERSION, COMMIT
+from .modules.documents.services.ai_failures import ai_circuit
 from .routers import api_router
 
 # Configuracao do novo log estruturado
@@ -176,5 +177,7 @@ async def health_check():
         "scheduler_jobs": len(scheduler.get_jobs()) if scheduler.running else 0,
         # o app esconde as telas dos módulos desligados (#42)
         "modules": sorted(enabled_modules()),
+        # RN016: o app avisa antes do envio que a leitura está lenta ou pausada
+        "ai": ai_circuit.state(),
     }
     return JSONResponse(body, status_code=200 if db_ok else 503)

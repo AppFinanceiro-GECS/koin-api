@@ -1,6 +1,16 @@
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+)
 
 from app.core.deps import CurrentUser, DbSession
+from app.models.document import DocumentStatus
 from app.modules.documents.schemas.document import DocumentAsyncUploadResponse, DocumentResponse
 from app.modules.documents.services.document_service import DocumentService, PasswordRequiredError
 
@@ -11,6 +21,7 @@ router = APIRouter()
 async def upload_document(
     current_user: CurrentUser,
     db: DbSession,
+    response: Response,
     file: UploadFile = File(...),
     password: str | None = Form(None),
     credit_card_id: int | None = Form(None),
@@ -33,12 +44,16 @@ async def upload_document(
     service = DocumentService(db)
     try:
         # Service agora retorna DocumentResponse diretamente
-        return await service.upload(current_user, file, password, credit_card_id, force)
+        result = await service.upload(current_user, file, password, credit_card_id, force)
     except PasswordRequiredError:
         raise HTTPException(
             status_code=422,
             detail={"error": "password_required", "message": "PDF protegido por senha"},
         )
+    if result.status == DocumentStatus.WAITING_AI:
+        # RN016: arquivo guardado, leitura adiada; nada para confirmar ainda
+        response.status_code = 202
+    return result
 
 
 @router.post("/async", response_model=DocumentAsyncUploadResponse, status_code=202)

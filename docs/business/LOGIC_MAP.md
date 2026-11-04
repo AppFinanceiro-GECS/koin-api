@@ -206,6 +206,7 @@ Login/Register
 | **RN013** | Registro público desabilitado | Tentar registrar | Apenas via convite | `routers/auth.py:32-40` (comentado) | Invitation |
 | **RN014** | Admin pode ver todos usuários/licenças | Acessar /admin | is_admin=true required | `routers/admin.py` | User.is_admin |
 | **RN015** | OCR usa prompt específico por banco | Processar fatura | card_issuer → prompt especializado | `llm_ocr_service.py:100-267` | Santander, Carrefour, etc. |
+| **RN016** | Leitura por IA indisponível não perde o envio | Upload com a IA em cota esgotada, sobrecarga, timeout ou chave inválida | Documento fica `waiting_ai` com `error_code` e `next_retry_at`; o job `retry_waiting_documents` (5 min) reprocessa com backoff; depois de 429 o disjuntor pausa todas as chamadas; ilegível vira `failed` sem nova tentativa; `error_message` só com texto do catálogo | `documents/services/ai_failures.py`, `document_service.py` (`mark_failure`, `retry_waiting_documents`) | Document.status/error_code/next_retry_at/attempts |
 
 ### Casos Extremos Conhecidos
 
@@ -216,6 +217,9 @@ Login/Register
 | RN004 | PDF reenviado | Detecta duplicata, retorna 409 |
 | RN005 | Parcela projetada com valor diferente | Atualiza valor se diferença > 1 centavo |
 | RN012 | Duas compras parceladas similares | Match por data compatível (±45 dias) |
+| RN016 | API reinicia com documento em `processing` | Após 15 min o job devolve para a fila; na 3ª vez vira `failed` (`processing_timeout`) |
+| RN016 | PDF com senha ou arquivo apagado na fila | O job não tem a senha nem o arquivo: `failed` com `password_required` / `file_missing` |
+| RN016 | IA fora por muito tempo | Backoff dobra até 6 h; depois de 20 tentativas vira `failed` com o último código |
 
 ### Regras Duplicadas/Divergentes
 
