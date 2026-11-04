@@ -39,6 +39,10 @@ class InvitationListResponse(BaseModel):
     invited_by_name: str
     expires_at: datetime
     created_at: datetime
+    # Só na criação e no reenvio: o admin copia e manda por outro canal se o e-mail não chegar
+    invite_url: str | None = None
+    invite_token: str | None = None
+    email_sent: bool | None = None
 
     class Config:
         from_attributes = True
@@ -53,3 +57,11 @@ class InviteValidation(BaseModel):
 class InviteRegister(BaseModel):
     name: str = Field(min_length=2, max_length=100)
     password: str = Field(min_length=8, max_length=72)
+
+
+class InviteResent(BaseModel):
+    message: str
+    expires_at: datetime
+    invite_url: str
+    invite_token: str
+    email_sent: bool
