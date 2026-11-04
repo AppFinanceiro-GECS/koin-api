@@ -216,7 +216,7 @@ async def get_credit_card(
     )
     row = result.first()
     if not row:
-        raise HTTPException(status_code=404, detail="Cartao nao encontrado")
+        raise HTTPException(status_code=404, detail="Cartão não encontrado")
 
     card, account = row
 
@@ -271,7 +271,7 @@ async def update_credit_card(
     )
     row = result.first()
     if not row:
-        raise HTTPException(status_code=404, detail="Cartao nao encontrado")
+        raise HTTPException(status_code=404, detail="Cartão não encontrado")
 
     card, account = row
 
@@ -363,7 +363,7 @@ async def delete_credit_card(
     )
     card = result.scalar_one_or_none()
     if not card:
-        raise HTTPException(status_code=404, detail="Cartao nao encontrado")
+        raise HTTPException(status_code=404, detail="Cartão não encontrado")
 
     # Deleting the card will cascade delete the account due to ondelete="CASCADE"
     # Actually, account has the cascade, so we need to delete account first
@@ -408,7 +408,7 @@ async def project_recurring_transactions(
     )
     card = result.scalar_one_or_none()
     if not card:
-        raise HTTPException(status_code=404, detail="Cartao nao encontrado")
+        raise HTTPException(status_code=404, detail="Cartão não encontrado")
 
     # Projetar recorrentes
     service = InvoiceService(db)
@@ -464,7 +464,7 @@ async def recalculate_card_invoices(
     )
     card = result.scalar_one_or_none()
     if not card:
-        raise HTTPException(status_code=404, detail="Cartao nao encontrado")
+        raise HTTPException(status_code=404, detail="Cartão não encontrado")
 
     service = InvoiceService(db)
     affected_invoices = set()

@@ -224,7 +224,7 @@ async def cancel_recurring(
         remove_projected=data.remove_projected,
     )
     if not result:
-        raise HTTPException(status_code=404, detail="Recorrencia nao encontrada")
+        raise HTTPException(status_code=404, detail="Recorrência não encontrada")
     return result
 
 

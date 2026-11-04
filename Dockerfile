@@ -33,11 +33,16 @@ COPY --from=builder /opt/venv /opt/venv
 COPY --chown=koin:koin . .
 RUN chmod +x docker/entrypoint.sh && mkdir -p /app/uploads && chown koin:koin /app/uploads
 
+# Commit da imagem em /health e nos erros (#41); depois das camadas pesadas para não invalidar o cache
+ARG GIT_COMMIT=dev
+ENV GIT_COMMIT=$GIT_COMMIT
+
 USER koin
 EXPOSE 8000
 
+# /health/live não depende do banco: Postgres fora do ar não deve reiniciar a API
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-    CMD python -c "import os,urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\",\"8000\")}/health', timeout=4)" || exit 1
+    CMD python -c "import os,urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\",\"8000\")}/health/live', timeout=4)" || exit 1
 
 ENTRYPOINT ["docker/entrypoint.sh"]
 # 1 worker de propósito: o APScheduler roda dentro do processo da API.

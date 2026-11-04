@@ -331,7 +331,7 @@ async def get_benefit_card(
     )
     row = result.first()
     if not row:
-        raise HTTPException(status_code=404, detail="Cartao de beneficio nao encontrado")
+        raise HTTPException(status_code=404, detail="Cartão de benefício não encontrado")
 
     card, account, tx_balance, receipt_total = row
     computed_balance = (
@@ -382,7 +382,7 @@ async def update_benefit_card(
     )
     row = result.first()
     if not row:
-        raise HTTPException(status_code=404, detail="Cartao de beneficio nao encontrado")
+        raise HTTPException(status_code=404, detail="Cartão de benefício não encontrado")
 
     card, account = row
 
@@ -460,7 +460,7 @@ async def delete_benefit_card(
     )
     card = result.scalar_one_or_none()
     if not card:
-        raise HTTPException(status_code=404, detail="Cartao de beneficio nao encontrado")
+        raise HTTPException(status_code=404, detail="Cartão de benefício não encontrado")
 
     # Delete account (cascades to card)
     account_result = await db.execute(select(Account).where(Account.id == card.account_id))
@@ -511,14 +511,14 @@ async def adjust_balance(
     card = result.scalar_one_or_none()
 
     if not card:
-        raise HTTPException(status_code=404, detail="Cartao de beneficio nao encontrado")
+        raise HTTPException(status_code=404, detail="Cartão de benefício não encontrado")
 
     # Buscar conta vinculada
     account_result = await db.execute(select(Account).where(Account.id == card.account_id))
     account = account_result.scalar_one_or_none()
 
     if not account:
-        raise HTTPException(status_code=404, detail="Conta vinculada nao encontrada")
+        raise HTTPException(status_code=404, detail="Conta vinculada não encontrada")
 
     # Realizar ajuste
     adjustment_result = await create_balance_adjustment(

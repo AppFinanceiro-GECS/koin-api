@@ -324,7 +324,7 @@ async def get_invoice(
     if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Fatura nao encontrada",
+            detail="Fatura não encontrada",
         )
 
     invoice = row[0]
@@ -417,7 +417,7 @@ async def create_invoice(
     if not credit_card:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cartao nao encontrado",
+            detail="Cartão não encontrado",
         )
 
     service = InvoiceService(db)
@@ -433,7 +433,7 @@ async def create_invoice(
     if existing.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ja existe fatura para {data.reference_month}/{data.reference_year}",
+            detail=f"Já existe fatura para {data.reference_month}/{data.reference_year}",
         )
 
     invoice = await service.get_or_create_invoice(
@@ -482,7 +482,7 @@ async def create_invoice_from_document(
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Documento nao encontrado",
+            detail="Documento não encontrado",
         )
 
     # Validar cartao
@@ -497,7 +497,7 @@ async def create_invoice_from_document(
     if not credit_card:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cartao nao encontrado",
+            detail="Cartão não encontrado",
         )
 
     service = InvoiceService(db)
@@ -537,7 +537,7 @@ async def update_invoice(
     if not invoice:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Fatura nao encontrada",
+            detail="Fatura não encontrada",
         )
 
     update_data = data.model_dump(exclude_unset=True)
@@ -551,7 +551,7 @@ async def update_invoice(
         if update_data["status"] not in valid_statuses:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Status invalido. Valores validos: {valid_statuses}",
+                detail=f"Status inválido. Valores válidos: {valid_statuses}",
             )
         invoice.status = update_data["status"]
 
@@ -636,13 +636,13 @@ async def pay_invoice(
     if not invoice:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Fatura nao encontrada",
+            detail="Fatura não encontrada",
         )
 
     if invoice.status == InvoiceStatus.PAID.value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Fatura ja esta paga",
+            detail="Fatura já está paga",
         )
 
     await service.pay_invoice(
@@ -694,7 +694,7 @@ async def list_card_invoices(
     if not card_result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cartao nao encontrado",
+            detail="Cartão não encontrado",
         )
 
     service = InvoiceService(db)
@@ -757,7 +757,7 @@ async def get_card_current_invoice(
     if not credit_card:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cartao nao encontrado",
+            detail="Cartão não encontrado",
         )
 
     service = InvoiceService(db)
@@ -1012,7 +1012,7 @@ async def project_future_transactions(
     credit_card = card_result.scalar_one_or_none()
 
     if not credit_card:
-        raise HTTPException(status_code=404, detail="Cartao nao encontrado")
+        raise HTTPException(status_code=404, detail="Cartão não encontrado")
 
     total_transactions = 0
     invoices_before = set()
