@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -7,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from .core.ai_models import check_ai_models
 from .core.config import settings
 from .core.database import engine
 from .core.rate_limit import limiter, rate_limit_exceeded_handler
@@ -60,6 +62,9 @@ async def lifespan(app: FastAPI):
         logger.info("Scheduler iniciado com sucesso.")
     except Exception as e:
         logger.error(f"Scheduler não iniciou: {e}")
+
+    # Em segundo plano: a chamada ao Google não atrasa o /health do deploy
+    app.state.ai_model_check = asyncio.create_task(check_ai_models())
 
     yield
 
