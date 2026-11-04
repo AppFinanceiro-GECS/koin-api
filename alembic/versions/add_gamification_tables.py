@@ -62,7 +62,8 @@ def upgrade():
     )
     op.create_index("ix_user_badges_user_id", "user_badges", ["user_id"])
     op.create_index("ix_user_badges_badge_id", "user_badges", ["badge_id"])
-    op.create_unique_constraint("uq_user_badges_user_badge", "user_badges", ["user_id", "badge_id"])
+    with op.batch_alter_table("user_badges") as batch_op:
+        batch_op.create_unique_constraint("uq_user_badges_user_badge", ["user_id", "badge_id"])
 
     # 3. User Streaks
     op.create_table(
@@ -83,9 +84,8 @@ def upgrade():
         ),
     )
     op.create_index("ix_user_streaks_user_id", "user_streaks", ["user_id"])
-    op.create_unique_constraint(
-        "uq_user_streaks_user_type", "user_streaks", ["user_id", "streak_type"]
-    )
+    with op.batch_alter_table("user_streaks") as batch_op:
+        batch_op.create_unique_constraint("uq_user_streaks_user_type", ["user_id", "streak_type"])
 
     # 4. Streak History
     op.create_table(

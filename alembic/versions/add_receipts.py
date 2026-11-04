@@ -74,36 +74,34 @@ def upgrade() -> None:
     # 3. Add receipt_id column to transactions table
     op.add_column("transactions", sa.Column("receipt_id", sa.Integer(), nullable=True))
     op.create_index("ix_transactions_receipt_id", "transactions", ["receipt_id"])
-    op.create_foreign_key(
-        "fk_transactions_receipt_id",
-        "transactions",
-        "receipts",
-        ["receipt_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    with op.batch_alter_table("transactions") as batch_op:
+        batch_op.create_foreign_key(
+            "fk_transactions_receipt_id", "receipts", ["receipt_id"], ["id"], ondelete="SET NULL"
+        )
 
     # 4. Add receipt_id column to grocery_purchases table
     op.add_column("grocery_purchases", sa.Column("receipt_id", sa.Integer(), nullable=True))
     op.create_index("ix_grocery_purchases_receipt_id", "grocery_purchases", ["receipt_id"])
-    op.create_foreign_key(
-        "fk_grocery_purchases_receipt_id",
-        "grocery_purchases",
-        "receipts",
-        ["receipt_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
+    with op.batch_alter_table("grocery_purchases") as batch_op:
+        batch_op.create_foreign_key(
+            "fk_grocery_purchases_receipt_id",
+            "receipts",
+            ["receipt_id"],
+            ["id"],
+            ondelete="CASCADE",
+        )
 
 
 def downgrade() -> None:
     # Remove FK and column from grocery_purchases
-    op.drop_constraint("fk_grocery_purchases_receipt_id", "grocery_purchases", type_="foreignkey")
+    with op.batch_alter_table("grocery_purchases") as batch_op:
+        batch_op.drop_constraint("fk_grocery_purchases_receipt_id", type_="foreignkey")
     op.drop_index("ix_grocery_purchases_receipt_id", table_name="grocery_purchases")
     op.drop_column("grocery_purchases", "receipt_id")
 
     # Remove FK and column from transactions
-    op.drop_constraint("fk_transactions_receipt_id", "transactions", type_="foreignkey")
+    with op.batch_alter_table("transactions") as batch_op:
+        batch_op.drop_constraint("fk_transactions_receipt_id", type_="foreignkey")
     op.drop_index("ix_transactions_receipt_id", table_name="transactions")
     op.drop_column("transactions", "receipt_id")
 

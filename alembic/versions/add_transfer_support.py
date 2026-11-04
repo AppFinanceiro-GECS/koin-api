@@ -20,15 +20,20 @@ depends_on = None
 def upgrade():
     # Add linked_transaction_id column to transactions table
     # This field links two transactions together for transfers
-    op.add_column(
-        "transactions",
-        sa.Column(
-            "linked_transaction_id",
-            sa.Integer(),
-            sa.ForeignKey("transactions.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
-    )
+    with op.batch_alter_table("transactions") as batch_op:
+        batch_op.add_column(
+            sa.Column(
+                "linked_transaction_id",
+                sa.Integer(),
+                # mesmo nome que o Postgres gera sem nome explícito (o batch do SQLite exige um)
+                sa.ForeignKey(
+                    "transactions.id",
+                    name="transactions_linked_transaction_id_fkey",
+                    ondelete="SET NULL",
+                ),
+                nullable=True,
+            ),
+        )
 
     # Create index for faster lookups
     op.create_index(

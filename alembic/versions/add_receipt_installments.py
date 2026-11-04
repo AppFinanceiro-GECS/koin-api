@@ -37,22 +37,22 @@ def upgrade() -> None:
     )
 
     # Add foreign keys
-    op.create_foreign_key(
-        "fk_receipt_payments_credit_card_id",
-        "receipt_payments",
-        "credit_cards",
-        ["credit_card_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
-    op.create_foreign_key(
-        "fk_receipt_payments_installment_series_id",
-        "receipt_payments",
-        "installment_series",
-        ["installment_series_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    with op.batch_alter_table("receipt_payments") as batch_op:
+        batch_op.create_foreign_key(
+            "fk_receipt_payments_credit_card_id",
+            "credit_cards",
+            ["credit_card_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
+    with op.batch_alter_table("receipt_payments") as batch_op:
+        batch_op.create_foreign_key(
+            "fk_receipt_payments_installment_series_id",
+            "installment_series",
+            ["installment_series_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
 
     # Add indexes for the new FK columns
     op.create_index("ix_receipt_payments_credit_card_id", "receipt_payments", ["credit_card_id"])
@@ -67,10 +67,10 @@ def downgrade() -> None:
     op.drop_index("ix_receipt_payments_credit_card_id", table_name="receipt_payments")
 
     # Drop foreign keys
-    op.drop_constraint(
-        "fk_receipt_payments_installment_series_id", "receipt_payments", type_="foreignkey"
-    )
-    op.drop_constraint("fk_receipt_payments_credit_card_id", "receipt_payments", type_="foreignkey")
+    with op.batch_alter_table("receipt_payments") as batch_op:
+        batch_op.drop_constraint("fk_receipt_payments_installment_series_id", type_="foreignkey")
+    with op.batch_alter_table("receipt_payments") as batch_op:
+        batch_op.drop_constraint("fk_receipt_payments_credit_card_id", type_="foreignkey")
 
     # Drop columns
     op.drop_column("receipt_payments", "installment_series_id")

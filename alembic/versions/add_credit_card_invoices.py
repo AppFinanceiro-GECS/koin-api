@@ -80,14 +80,14 @@ def upgrade() -> None:
     # 2. Adicionar coluna invoice_id na tabela transactions
     op.add_column("transactions", sa.Column("invoice_id", sa.Integer(), nullable=True))
 
-    op.create_foreign_key(
-        "fk_transactions_invoice_id",
-        "transactions",
-        "credit_card_invoices",
-        ["invoice_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    with op.batch_alter_table("transactions") as batch_op:
+        batch_op.create_foreign_key(
+            "fk_transactions_invoice_id",
+            "credit_card_invoices",
+            ["invoice_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
     op.create_index("ix_transactions_invoice_id", "transactions", ["invoice_id"])
 
     # 3. Migrar transações existentes para faturas
@@ -248,7 +248,8 @@ def migrate_existing_transactions() -> None:
 def downgrade() -> None:
     # Remove foreign key and column from transactions
     op.drop_index("ix_transactions_invoice_id", "transactions")
-    op.drop_constraint("fk_transactions_invoice_id", "transactions", type_="foreignkey")
+    with op.batch_alter_table("transactions") as batch_op:
+        batch_op.drop_constraint("fk_transactions_invoice_id", type_="foreignkey")
     op.drop_column("transactions", "invoice_id")
 
     # Drop credit_card_invoices table

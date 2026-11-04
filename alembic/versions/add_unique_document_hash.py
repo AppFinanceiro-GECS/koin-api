@@ -23,6 +23,19 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    # Desempata hashes repetidos antes do índice único. sha256/convert_to só existem no
+    # Postgres; no SQLite do make dev a base nasce vazia e não há o que desempatar.
+    if op.get_bind().dialect.name == "postgresql":
+        _dedupe_file_hashes()
+    op.execute(
+        sa.text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_documents_user_file_hash "
+            "ON documents (user_id, file_hash)"
+        )
+    )
+
+
+def _dedupe_file_hashes() -> None:
     op.execute(
         sa.text("""
         UPDATE documents d
@@ -34,12 +47,6 @@ def upgrade() -> None:
             AND older.id < d.id
         )
     """)
-    )
-    op.execute(
-        sa.text(
-            "CREATE UNIQUE INDEX IF NOT EXISTS uq_documents_user_file_hash "
-            "ON documents (user_id, file_hash)"
-        )
     )
 
 
