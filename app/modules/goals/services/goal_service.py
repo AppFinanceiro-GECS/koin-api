@@ -10,8 +10,8 @@ from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.utils import today_br
 
+from app.core.utils import today_br
 from app.models.account import Account
 from app.models.goal import Goal, GoalContribution, GoalStatus, GoalType
 from app.models.transaction import Transaction, TransactionType

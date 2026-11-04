@@ -5,10 +5,10 @@ from enum import Enum
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.utils import utc_now
+from app.core.utils import today_br, utc_now
 
 from ..core.database import Base
-from app.core.utils import today_br
+
 
 def generate_license_code() -> str:
     """Gera código amigável: BIV-XXXX-XXXX"""

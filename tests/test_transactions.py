@@ -5,13 +5,13 @@ Cobre duplicata (RN004), confirmação de item extraído e analytics (RN008).
 
 from datetime import date
 from decimal import Decimal
-from app.core.utils import today_br
 
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.utils import today_br
 from app.models.account import Account
 from app.models.category import Category
 from app.models.credit_card import CreditCard

@@ -10,8 +10,8 @@ from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.utils import today_br
 
+from app.core.utils import today_br
 from app.models.debt import Debt, DebtPayment, DebtStatus, DebtType
 from app.models.user import User
 from app.modules.debts.schemas.debt import (

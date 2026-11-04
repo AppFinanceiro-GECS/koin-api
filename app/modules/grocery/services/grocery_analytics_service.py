@@ -7,8 +7,8 @@ from datetime import date, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.utils import today_br
 
+from app.core.utils import today_br
 from app.models.grocery import (
     GROCERY_CATEGORY_DISPLAY,
     NECESSITY_TYPE_DISPLAY,

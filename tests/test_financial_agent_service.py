@@ -14,11 +14,11 @@ import json
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
-from app.core.utils import today_br
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.utils import today_br
 from app.modules.chat.services.financial_agent_service import (
     DecimalEncoder,
     FinancialAgentService,

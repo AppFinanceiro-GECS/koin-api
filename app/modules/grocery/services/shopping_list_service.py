@@ -3,15 +3,14 @@ Shopping List Service - CRUD and AI generation for shopping lists
 """
 
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from app.core.utils import today_br
 
-from app.core.utils import utc_now
+from app.core.utils import today_br, utc_now
 from app.models.grocery import (
     GROCERY_CATEGORY_DISPLAY,
     NECESSITY_TYPE_DISPLAY,

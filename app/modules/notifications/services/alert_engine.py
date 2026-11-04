@@ -10,14 +10,13 @@ This service analyzes user data to detect important financial events:
 - Recurring transactions due
 """
 
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.utils import today_br
 
-from app.core.utils import utc_now
+from app.core.utils import today_br, utc_now
 from app.models.account import Account
 from app.models.budget import Budget, BudgetItem
 from app.models.credit_card import CreditCard

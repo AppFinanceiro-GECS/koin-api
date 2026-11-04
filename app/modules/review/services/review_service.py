@@ -7,12 +7,12 @@ Provides data for guided weekly financial reviews.
 import logging
 from datetime import date, timedelta
 from decimal import Decimal
-from app.core.utils import today_br
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.utils import today_br
 from app.models import (
     Budget,
     BudgetItem,

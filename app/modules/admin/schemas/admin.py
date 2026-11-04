@@ -3,8 +3,8 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 from app.core.email_address import NormalizedEmail
-from app.models.license import LicenseStatus, LicenseType
 from app.core.utils import today_br
+from app.models.license import LicenseStatus, LicenseType
 
 # ========== License Schemas ==========
 

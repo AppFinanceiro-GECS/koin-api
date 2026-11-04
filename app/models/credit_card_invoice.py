@@ -1,7 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from app.core.utils import today_br
 
 from sqlalchemy import (
     JSON,
@@ -15,6 +14,8 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.utils import today_br
 
 from ..core.database import Base
 from ..core.utils import utc_now

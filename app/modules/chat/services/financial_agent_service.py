@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.ai_usage import AIUnavailable, metered, tracked_call
 from app.core.config import settings
-from app.core.utils import utc_now
+from app.core.utils import today_br, utc_now
 from app.models.account import Account
 
 # Envelope module removed - functionality merged into Budgets module
@@ -49,7 +49,6 @@ from app.models.recurring import RecurringStatus, RecurringTransaction
 from app.models.transaction import Transaction, TransactionType
 from app.models.user import User
 from app.modules.chat.schemas.chat import ChatResponse
-from app.core.utils import today_br
 
 # Limite de mensagens por conversa para evitar vazamento de memória
 MAX_MESSAGES_PER_CONVERSATION = 10
