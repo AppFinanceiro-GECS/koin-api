@@ -334,13 +334,13 @@ class InvoiceService:
         if not payment_account:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conta de pagamento nao encontrada",
+                detail="Conta de pagamento não encontrada",
             )
 
         if payment_account.type == "credit_card":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Nao e possivel pagar fatura com outro cartao de credito",
+                detail="Não é possível pagar fatura com outro cartão de crédito",
             )
 
         # Obter categoria de pagamento
@@ -735,7 +735,7 @@ class InvoiceService:
         if not invoice:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Fatura nao encontrada",
+                detail="Fatura não encontrada",
             )
 
         result = {
@@ -865,7 +865,7 @@ class InvoiceService:
         if existing.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Ja existe uma fatura para {reference_month}/{reference_year}",
+                detail=f"Já existe uma fatura para {reference_month}/{reference_year}",
             )
 
         invoice = CreditCardInvoice(

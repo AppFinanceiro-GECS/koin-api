@@ -117,7 +117,7 @@ async def get_document(
     service = DocumentService(db)
     document = await service.get_by_id(current_user, document_id)
     if not document:
-        raise HTTPException(status_code=404, detail="Documento nao encontrado")
+        raise HTTPException(status_code=404, detail="Documento não encontrado")
 
     # Se documento foi processado em background, converter dados salvos
     response = DocumentResponse.model_validate(document)

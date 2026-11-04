@@ -57,7 +57,7 @@ async def delete_category(
     if not category:
         raise HTTPException(
             status_code=404,
-            detail="Categoria nao encontrada ou e uma categoria do sistema",
+            detail="Categoria não encontrada ou é uma categoria do sistema",
         )
 
     await db.delete(category)

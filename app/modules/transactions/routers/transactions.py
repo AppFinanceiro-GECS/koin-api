@@ -484,7 +484,7 @@ async def get_transaction(
     service = TransactionService(db)
     transaction = await service.get_by_id(current_user, transaction_id)
     if not transaction:
-        raise HTTPException(status_code=404, detail="Transacao nao encontrada")
+        raise HTTPException(status_code=404, detail="Transação não encontrada")
     return transaction
 
 

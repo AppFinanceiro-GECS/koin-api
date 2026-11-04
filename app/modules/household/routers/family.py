@@ -31,7 +31,7 @@ def require_license(user: User):
     """Verifica se o usuario tem licenca"""
     if not user.license_id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Usuario nao possui licenca"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Usuário não possui licença"
         )
 
 
@@ -39,11 +39,11 @@ def require_can_invite(user: User):
     """Verifica se o usuario pode convidar membros"""
     if not user.household_membership:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Usuario nao pertence a nenhuma familia"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Usuário não pertence a nenhuma família"
         )
     if not user.household_membership.can_invite_members:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissao para convidar membros"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para convidar membros"
         )
 
 
@@ -57,7 +57,7 @@ async def get_family_context(current_user: CurrentUser, db: DbSession):
     license = license_result.scalar_one_or_none()
 
     if not license:
-        raise HTTPException(status_code=404, detail="Licenca nao encontrada")
+        raise HTTPException(status_code=404, detail="Licença não encontrada")
 
     # Buscar membros
     members_result = await db.execute(
@@ -173,7 +173,7 @@ async def invite_member(
     license = license_result.scalar_one_or_none()
 
     if not license:
-        raise HTTPException(status_code=404, detail="Licenca nao encontrada")
+        raise HTTPException(status_code=404, detail="Licença não encontrada")
 
     # Verificar limite de usuarios
     if not license.can_add_members:
@@ -192,8 +192,8 @@ async def invite_member(
             )
         )
         if existing_member:
-            raise HTTPException(status_code=400, detail="Usuario ja eh membro desta familia")
-        raise HTTPException(status_code=400, detail="Email ja cadastrado no sistema")
+            raise HTTPException(status_code=400, detail="Usuário já é membro desta família")
+        raise HTTPException(status_code=400, detail="Email já cadastrado no sistema")
 
     # Verificar se ja existe convite pendente
     existing_invite = await db.scalar(
@@ -202,7 +202,7 @@ async def invite_member(
         )
     )
     if existing_invite:
-        raise HTTPException(status_code=400, detail="Ja existe um convite pendente para este email")
+        raise HTTPException(status_code=400, detail="Já existe um convite pendente para este email")
 
     # Criar convite
     invitation = Invitation(
@@ -283,14 +283,14 @@ async def cancel_family_invitation(
     invitation = invitation_result.scalar_one_or_none()
 
     if not invitation:
-        raise HTTPException(status_code=404, detail="Convite nao encontrado")
+        raise HTTPException(status_code=404, detail="Convite não encontrado")
 
     # Verificar se o convite eh da mesma licenca
     if invitation.license_id != current_user.license_id:
-        raise HTTPException(status_code=403, detail="Convite nao pertence a sua familia")
+        raise HTTPException(status_code=403, detail="Convite não pertence à sua família")
 
     if invitation.status != InvitationStatus.PENDING:
-        raise HTTPException(status_code=400, detail="Convite ja foi aceito ou cancelado")
+        raise HTTPException(status_code=400, detail="Convite já foi aceito ou cancelado")
 
     invitation.status = InvitationStatus.CANCELLED
     await db.commit()
@@ -310,13 +310,13 @@ async def resend_family_invitation(
     invitation = invitation_result.scalar_one_or_none()
 
     if not invitation:
-        raise HTTPException(status_code=404, detail="Convite nao encontrado")
+        raise HTTPException(status_code=404, detail="Convite não encontrado")
 
     if invitation.license_id != current_user.license_id:
-        raise HTTPException(status_code=403, detail="Convite nao pertence a sua familia")
+        raise HTTPException(status_code=403, detail="Convite não pertence à sua família")
 
     if invitation.status != InvitationStatus.PENDING:
-        raise HTTPException(status_code=400, detail="Convite nao esta pendente")
+        raise HTTPException(status_code=400, detail="Convite não está pendente")
 
     # Enviar email novamente
     invite_url = f"{settings.frontend_url}/invite/{invitation.token}"
@@ -344,13 +344,13 @@ async def remove_family_member(
     # Verificar se o usuario eh owner da familia
     if not current_user.household_membership:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Usuario nao pertence a nenhuma familia"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Usuário não pertence a nenhuma família"
         )
 
     if current_user.household_membership.role != HouseholdRole.OWNER.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas o proprietario pode remover membros",
+            detail="Apenas o proprietário pode remover membros",
         )
 
     # Buscar membro a ser removido
@@ -358,19 +358,19 @@ async def remove_family_member(
     member = member_result.scalar_one_or_none()
 
     if not member:
-        raise HTTPException(status_code=404, detail="Membro nao encontrado")
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
 
     # Verificar se pertence a mesma licenca
     if member.license_id != current_user.license_id:
-        raise HTTPException(status_code=403, detail="Membro nao pertence a sua familia")
+        raise HTTPException(status_code=403, detail="Membro não pertence à sua família")
 
     # Nao pode remover a si mesmo
     if member.user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="Voce nao pode remover a si mesmo")
+        raise HTTPException(status_code=400, detail="Você não pode remover a si mesmo")
 
     # Nao pode remover outro owner
     if member.role == HouseholdRole.OWNER.value:
-        raise HTTPException(status_code=400, detail="Nao e possivel remover o proprietario")
+        raise HTTPException(status_code=400, detail="Não é possível remover o proprietário")
 
     # Buscar usuario para limpar a licenca dele
     user_result = await db.execute(select(User).where(User.id == member.user_id))

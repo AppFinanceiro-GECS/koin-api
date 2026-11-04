@@ -220,7 +220,7 @@ class DocumentService:
         if existing.status == DocumentStatus.PROCESSING:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Documento ja esta sendo processado",
+                detail="Documento já está sendo processado",
             )
         existing.error_message = None
         return existing
@@ -593,7 +593,7 @@ class DocumentService:
         if len(files) > 10:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Maximo de 10 arquivos permitido",
+                detail="Máximo de 10 arquivos permitido",
             )
 
         images: list[tuple[bytes, str]] = []
@@ -876,13 +876,13 @@ class DocumentService:
         if not document:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Documento nao encontrado",
+                detail="Documento não encontrado",
             )
 
         if document.status == DocumentStatus.PROCESSING:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Documento ja esta sendo processado",
+                detail="Documento já está sendo processado",
             )
 
         if not os.path.exists(document.file_path):
@@ -909,7 +909,7 @@ class DocumentService:
         if not document:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Documento nao encontrado",
+                detail="Documento não encontrado",
             )
 
         # Documentos antigos (anteriores ao indice unico) podem compartilhar o mesmo arquivo

@@ -318,7 +318,7 @@ async def create_license(
         )
     )
     if existing_invite and not data.force_transfer:
-        raise HTTPException(status_code=400, detail="Ja existe um convite pendente para este email")
+        raise HTTPException(status_code=400, detail="Já existe um convite pendente para este email")
 
     # Cancel any existing pending invites for this email if force_transfer
     if data.force_transfer and existing_invite:
@@ -475,7 +475,7 @@ async def update_license(
     license = result.scalar_one_or_none()
 
     if not license:
-        raise HTTPException(status_code=404, detail="Licenca nao encontrada")
+        raise HTTPException(status_code=404, detail="Licença não encontrada")
 
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -564,13 +564,13 @@ async def delete_license(
     license = result.scalar_one_or_none()
 
     if not license:
-        raise HTTPException(status_code=404, detail="Licenca nao encontrada")
+        raise HTTPException(status_code=404, detail="Licença não encontrada")
 
     # Check if license has users
     user_count = await db.scalar(select(func.count(User.id)).where(User.license_id == license.id))
     if user_count > 0:
         raise HTTPException(
-            status_code=400, detail=f"Nao e possivel deletar. {user_count} usuario(s) vinculado(s)."
+            status_code=400, detail=f"Não é possível deletar. {user_count} usuário(s) vinculado(s)."
         )
 
     # Delete related invitations first
@@ -598,14 +598,14 @@ async def resend_license_invitation(
     license = result.scalar_one_or_none()
 
     if not license:
-        raise HTTPException(status_code=404, detail="Licenca nao encontrada")
+        raise HTTPException(status_code=404, detail="Licença não encontrada")
 
     if not license.owner_email:
-        raise HTTPException(status_code=400, detail="Licenca nao tem email de proprietario")
+        raise HTTPException(status_code=400, detail="Licença não tem email de proprietário")
 
     # Verificar se ja existe usuario cadastrado
     if license.owner_user_id:
-        raise HTTPException(status_code=400, detail="Proprietario ja cadastrado")
+        raise HTTPException(status_code=400, detail="Proprietário já cadastrado")
 
     # Buscar convite pendente/expirado para esta licenca
     invitation = await db.scalar(
@@ -678,14 +678,14 @@ async def create_user(
     # Check if email exists
     existing = await db.scalar(select(User).where(User.email == data.email))
     if existing:
-        raise HTTPException(status_code=400, detail="Email ja cadastrado")
+        raise HTTPException(status_code=400, detail="Email já cadastrado")
 
     # Validate license if provided
     license = None
     if data.license_id:
         license = await db.scalar(select(License).where(License.id == data.license_id))
         if not license:
-            raise HTTPException(status_code=400, detail="Licenca nao encontrada")
+            raise HTTPException(status_code=400, detail="Licença não encontrada")
 
     # If password provided, create user directly
     if data.password:
@@ -717,7 +717,7 @@ async def create_user(
         )
     )
     if existing_invite:
-        raise HTTPException(status_code=400, detail="Ja existe um convite pendente para este email")
+        raise HTTPException(status_code=400, detail="Já existe um convite pendente para este email")
 
     invitation = Invitation(
         email=data.email,
@@ -767,7 +767,7 @@ async def get_user(
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=404, detail="Usuario nao encontrado")
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
     return UserAdminResponse.model_validate(user)
 
@@ -786,7 +786,7 @@ async def update_user(
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=404, detail="Usuario nao encontrado")
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
     update_data = data.model_dump(exclude_unset=True)
 
@@ -803,7 +803,7 @@ async def update_user(
             select(User).where(User.email == update_data["email"], User.id != user_id)
         )
         if existing:
-            raise HTTPException(status_code=400, detail="Email ja cadastrado")
+            raise HTTPException(status_code=400, detail="Email já cadastrado")
 
     for key, value in update_data.items():
         setattr(user, key, value)
@@ -828,13 +828,13 @@ async def delete_user(
     require_admin(current_user)
 
     if user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="Nao e possivel deletar a si mesmo")
+        raise HTTPException(status_code=400, detail="Não é possível deletar a si mesmo")
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=404, detail="Usuario nao encontrado")
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
     await db.delete(user)
     await db.commit()
@@ -853,7 +853,7 @@ async def send_password_reset(
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=404, detail="Usuario nao encontrado")
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
     reset_token = assign_reset_token(user)
     await db.commit()
@@ -934,7 +934,7 @@ async def create_invitation(
     # Verificar se email ja esta cadastrado
     existing_user = await db.scalar(select(User).where(User.email == data.email))
     if existing_user:
-        raise HTTPException(status_code=400, detail="Email ja cadastrado no sistema")
+        raise HTTPException(status_code=400, detail="Email já cadastrado no sistema")
 
     # Verificar se ja existe convite pendente
     existing_invite = await db.scalar(
@@ -943,14 +943,14 @@ async def create_invitation(
         )
     )
     if existing_invite:
-        raise HTTPException(status_code=400, detail="Ja existe um convite pendente para este email")
+        raise HTTPException(status_code=400, detail="Já existe um convite pendente para este email")
 
     # Validar licenca se fornecida
     license = None
     if data.license_id:
         license = await db.scalar(select(License).where(License.id == data.license_id))
         if not license:
-            raise HTTPException(status_code=400, detail="Licenca nao encontrada")
+            raise HTTPException(status_code=400, detail="Licença não encontrada")
 
     # Criar convite
     invitation = Invitation(
@@ -1007,10 +1007,10 @@ async def resend_invitation(
     invitation = result.scalar_one_or_none()
 
     if not invitation:
-        raise HTTPException(status_code=404, detail="Convite nao encontrado")
+        raise HTTPException(status_code=404, detail="Convite não encontrado")
 
     if invitation.status == InvitationStatus.ACCEPTED:
-        raise HTTPException(status_code=400, detail="Convite ja foi aceito")
+        raise HTTPException(status_code=400, detail="Convite já foi aceito")
 
     if invitation.status == InvitationStatus.CANCELLED:
         raise HTTPException(status_code=400, detail="Convite foi cancelado")
@@ -1058,10 +1058,10 @@ async def cancel_invitation(
     invitation = result.scalar_one_or_none()
 
     if not invitation:
-        raise HTTPException(status_code=404, detail="Convite nao encontrado")
+        raise HTTPException(status_code=404, detail="Convite não encontrado")
 
     if invitation.status == InvitationStatus.ACCEPTED:
-        raise HTTPException(status_code=400, detail="Convite ja foi aceito")
+        raise HTTPException(status_code=400, detail="Convite já foi aceito")
 
     invitation.status = InvitationStatus.CANCELLED
     await db.commit()
