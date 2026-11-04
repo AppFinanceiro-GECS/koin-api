@@ -11,6 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from .core.ai_models import check_ai_models
 from .core.config import settings
 from .core.database import engine
+from .core.modules import enabled_modules
 from .core.rate_limit import limiter, rate_limit_exceeded_handler
 from .routers import api_router
 
@@ -134,4 +135,6 @@ async def health_check():
         "environment": settings.environment,
         "scheduler_active": scheduler.running,
         "scheduler_jobs": len(scheduler.get_jobs()) if scheduler.running else 0,
+        # o app esconde as telas dos módulos desligados (#42)
+        "modules": sorted(enabled_modules()),
     }

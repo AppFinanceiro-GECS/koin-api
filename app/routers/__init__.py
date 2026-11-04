@@ -7,6 +7,7 @@ A estrutura modular permite fácil manutenção e futura extração para microse
 
 from fastapi import APIRouter
 
+from app.core.modules import enabled_modules
 from app.modules.accounts.routers.accounts import router as accounts_router
 from app.modules.admin.routers.admin import router as admin_router
 from app.modules.analytics.routers.analytics import router as analytics_router
@@ -42,96 +43,54 @@ from app.modules.recurring.routers.recurring import router as recurring_router
 from app.modules.review.routers.review import router as review_router
 from app.modules.transactions.routers.transactions import router as transactions_router
 
-api_router = APIRouter()
+# (módulo, router, prefixo, tags). Módulo desligado em ENABLED_MODULES não é registrado (#42)
+ROUTES = [
+    ("auth", auth_router, "/auth", ["Autenticação"]),
+    ("users", users_router, "/users", ["Usuários"]),
+    ("accounts", accounts_router, "/accounts", ["Contas"]),
+    ("categories", categories_router, "/categories", ["Categorias"]),
+    ("transactions", transactions_router, "/transactions", ["Transações"]),
+    ("documents", documents_router, "/documents", ["Documentos"]),
+    ("analytics", analytics_router, "/analytics", ["Analytics"]),
+    ("installments", installments_router, "/installments", ["Parcelas"]),
+    ("budgets", budgets_router, "/budgets", ["Orçamentos"]),
+    ("goals", goals_router, "/goals", ["Metas"]),
+    ("debts", debts_router, "/debts", ["Dívidas"]),
+    ("recurring", recurring_router, "/recurring", ["Recorrentes"]),
+    ("family", family_router, "/family", ["Familia"]),
+    ("household-migration", migration_router, "/household/migration", ["Migração Household"]),
+    ("chat", chat_router, "/chat", ["Chat - Agente IA"]),
+    ("admin", admin_router, "/admin", ["Admin - Gestao"]),
+    ("credit-cards", credit_cards_router, "/credit-cards", ["Cartões de Crédito"]),
+    ("invoices", invoices_router, "/invoices", ["Faturas"]),
+    ("benefit-cards", benefit_cards_router, "/benefit-cards", ["Cartões de Benefício"]),
+    ("income-sources", income_sources_router, "/income-sources", ["Fontes de Receita"]),
+    (
+        "income-splits",
+        income_splits_router,
+        "/income-split-rules",
+        ["Regras de Divisão de Receita"],
+    ),
+    # API Keys (integrações externas) e MCP (consultas via Claude Code) definem o próprio prefixo
+    ("api-keys", api_keys_router, "", ["API Keys"]),
+    ("mcp", mcp_router, "", ["MCP"]),
+    ("notifications", notifications_router, "/notifications", ["Notificações"]),
+    ("calendar", calendar_router, "/calendar", ["Calendário de Caixa"]),
+    # Envelopes module removed - functionality merged into Budgets module
+    ("automations", automations_router, "/automations", ["Automações"]),
+    ("review", review_router, "/review", ["Revisão Semanal"]),
+    ("grocery", grocery_router, "/grocery", ["Mercado"]),
+    ("receipts", receipts_router, "/receipts", ["Compras"]),
+    ("gamification", gamification_router, "/gamification", ["Gamificação"]),
+]
 
-# Auth module
-api_router.include_router(auth_router, prefix="/auth", tags=["Autenticação"])
-api_router.include_router(users_router, prefix="/users", tags=["Usuários"])
 
-# Accounts module
-api_router.include_router(accounts_router, prefix="/accounts", tags=["Contas"])
+def build_api_router(modules: frozenset[str]) -> APIRouter:
+    router = APIRouter()
+    for module, module_router, prefix, tags in ROUTES:
+        if module in modules:
+            router.include_router(module_router, prefix=prefix, tags=tags)
+    return router
 
-# Categories module
-api_router.include_router(categories_router, prefix="/categories", tags=["Categorias"])
 
-# Transactions module
-api_router.include_router(transactions_router, prefix="/transactions", tags=["Transações"])
-
-# Documents module
-api_router.include_router(documents_router, prefix="/documents", tags=["Documentos"])
-
-# Analytics module
-api_router.include_router(analytics_router, prefix="/analytics", tags=["Analytics"])
-
-# Installments module
-api_router.include_router(installments_router, prefix="/installments", tags=["Parcelas"])
-
-# Budgets module
-api_router.include_router(budgets_router, prefix="/budgets", tags=["Orçamentos"])
-
-# Goals module
-api_router.include_router(goals_router, prefix="/goals", tags=["Metas"])
-
-# Debts module
-api_router.include_router(debts_router, prefix="/debts", tags=["Dívidas"])
-
-# Recurring module
-api_router.include_router(recurring_router, prefix="/recurring", tags=["Recorrentes"])
-
-# Household module
-api_router.include_router(family_router, prefix="/family", tags=["Familia"])
-api_router.include_router(
-    migration_router, prefix="/household/migration", tags=["Migração Household"]
-)
-
-# Chat module
-api_router.include_router(chat_router, prefix="/chat", tags=["Chat - Agente IA"])
-
-# Admin module
-api_router.include_router(admin_router, prefix="/admin", tags=["Admin - Gestao"])
-
-# Credit Cards module
-api_router.include_router(credit_cards_router, prefix="/credit-cards", tags=["Cartões de Crédito"])
-api_router.include_router(invoices_router, prefix="/invoices", tags=["Faturas"])
-
-# Benefit Cards module
-api_router.include_router(
-    benefit_cards_router, prefix="/benefit-cards", tags=["Cartões de Benefício"]
-)
-
-# Income module
-api_router.include_router(
-    income_sources_router, prefix="/income-sources", tags=["Fontes de Receita"]
-)
-api_router.include_router(
-    income_splits_router, prefix="/income-split-rules", tags=["Regras de Divisão de Receita"]
-)
-
-# API Keys module (para integrações externas)
-api_router.include_router(api_keys_router, tags=["API Keys"])
-
-# MCP module (consultas via Claude Code)
-api_router.include_router(mcp_router, tags=["MCP"])
-
-# Notifications module
-api_router.include_router(notifications_router, prefix="/notifications", tags=["Notificações"])
-
-# Calendar module
-api_router.include_router(calendar_router, prefix="/calendar", tags=["Calendário de Caixa"])
-
-# Envelopes module removed - functionality merged into Budgets module
-
-# Automations module
-api_router.include_router(automations_router, prefix="/automations", tags=["Automações"])
-
-# Review module
-api_router.include_router(review_router, prefix="/review", tags=["Revisão Semanal"])
-
-# Grocery module
-api_router.include_router(grocery_router, prefix="/grocery", tags=["Mercado"])
-
-# Receipts module
-api_router.include_router(receipts_router, prefix="/receipts", tags=["Compras"])
-
-# Gamification module
-api_router.include_router(gamification_router, prefix="/gamification", tags=["Gamificação"])
+api_router = build_api_router(enabled_modules())

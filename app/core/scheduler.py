@@ -24,6 +24,7 @@ from app.core.utils import today_br
 
 from .config import settings
 from .database import async_session_maker
+from .modules import enabled_modules
 from .services.email_service import email_service
 from .utils import utc_now
 
@@ -419,76 +420,71 @@ async def task_process_threshold_automations():
 # ===== Scheduler Setup =====
 
 
-def register_jobs():
-    """Register all scheduled jobs. Called once at startup."""
-
+# (módulo dono, função, gatilho, id). Job de módulo desligado não é agendado (#42)
+JOBS = [
     # Alert tasks — same schedule as old Celery Beat
-    scheduler.add_job(
+    (
+        "invoices",
         task_check_invoice_due_dates,
         CronTrigger(hour=8, minute=0),
-        id="check_invoice_due_dates",
-        replace_existing=True,
-    )
-    scheduler.add_job(
+        "check_invoice_due_dates",
+    ),
+    (
+        "budgets",
         task_check_budget_thresholds,
         CronTrigger(hour="0,6,12,18", minute=15),
-        id="check_budget_thresholds",
-        replace_existing=True,
-    )
-    scheduler.add_job(
+        "check_budget_thresholds",
+    ),
+    (
+        "credit-cards",
         task_check_credit_card_limits,
         CronTrigger(hour="0,6,12,18", minute=30),
-        id="check_credit_card_limits",
-        replace_existing=True,
-    )
-    scheduler.add_job(
+        "check_credit_card_limits",
+    ),
+    (
+        "goals",
         task_check_goal_milestones,
         CronTrigger(hour="9,18", minute=0),
-        id="check_goal_milestones",
-        replace_existing=True,
-    )
-    scheduler.add_job(
-        task_check_recurring_due,
-        CronTrigger(hour=18, minute=0),
-        id="check_recurring_due",
-        replace_existing=True,
-    )
-    scheduler.add_job(
-        task_check_low_balance,
-        CronTrigger(hour=9, minute=30),
-        id="check_low_balance",
-        replace_existing=True,
-    )
-
+        "check_goal_milestones",
+    ),
+    ("recurring", task_check_recurring_due, CronTrigger(hour=18, minute=0), "check_recurring_due"),
+    ("accounts", task_check_low_balance, CronTrigger(hour=9, minute=30), "check_low_balance"),
     # Email delivery for pending notifications — every 5 minutes
-    scheduler.add_job(
+    (
+        "notifications",
         task_send_pending_email_notifications,
         IntervalTrigger(minutes=5),
-        id="send_pending_email_notifications",
-        replace_existing=True,
-    )
-
+        "send_pending_email_notifications",
+    ),
     # Recurring transaction generation — run daily at 6:00 AM
-    scheduler.add_job(
+    (
+        "recurring",
         task_generate_recurring_transactions,
         CronTrigger(hour=6, minute=0),
-        id="generate_recurring_transactions",
-        replace_existing=True,
-    )
-
+        "generate_recurring_transactions",
+    ),
     # Automation tasks
-    scheduler.add_job(
+    (
+        "automations",
         task_process_scheduled_automations,
         CronTrigger(minute=0),
-        id="process_scheduled_automations",
-        replace_existing=True,
-    )
-    scheduler.add_job(
+        "process_scheduled_automations",
+    ),
+    (
+        "automations",
         task_process_threshold_automations,
         CronTrigger(hour="0,6,12,18", minute=45),
-        id="process_threshold_automations",
-        replace_existing=True,
-    )
+        "process_threshold_automations",
+    ),
+]
+
+
+def register_jobs():
+    """Register the jobs of the enabled modules. Called once at startup."""
+    modules = enabled_modules()
+    for module, func, trigger, job_id in JOBS:
+        if module in modules:
+            scheduler.add_job(func, trigger, id=job_id, replace_existing=True)
 
     logger.info(f"Scheduler: {len(scheduler.get_jobs())} jobs registered (dry_run={DRY_RUN})")
 
