@@ -27,8 +27,8 @@ from enum import Enum
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.utils import today_br
 
+from app.core.utils import today_br
 from app.models.credit_card import CreditCard
 from app.models.credit_card_invoice import CreditCardInvoice, InvoiceStatus
 from app.models.user import User

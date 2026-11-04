@@ -7,9 +7,9 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import aliased
-from app.core.utils import today_br
 
 from app.core.deps import CurrentUser, DbSession
+from app.core.utils import today_br
 from app.models.account import Account, AccountType
 from app.models.credit_card import CreditCard
 from app.models.credit_card_invoice import CreditCardInvoice, InvoiceStatus

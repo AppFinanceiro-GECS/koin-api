@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.utils import utc_now
+from app.core.utils import today_br, utc_now
 from app.models.gamification import (
     ChallengeDefinition,
     ChallengeStatus,
@@ -18,7 +18,6 @@ from ..schemas import ChallengeDifficulty as ChallengeDifficultySchema
 from ..schemas import ChallengeListResponse, ChallengeResponse
 from ..schemas import ChallengeStatus as ChallengeStatusSchema
 from .points_service import PointsService
-from app.core.utils import today_br
 
 
 class ChallengeService:

@@ -113,7 +113,7 @@ def downgrade() -> None:
         batch_op.drop_index("ix_transactions_credit_card_id")
         batch_op.drop_constraint("fk_transactions_income_source_id", type_="foreignkey")
         batch_op.drop_constraint("fk_transactions_credit_card_id", type_="foreignkey")
-        
+
     with op.batch_alter_table("transactions") as batch_op:
         batch_op.drop_column("income_source_id")
         batch_op.drop_column("credit_card_id")

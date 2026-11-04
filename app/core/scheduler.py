@@ -13,18 +13,19 @@ Usage:
 
 import asyncio
 import logging
-from datetime import date, timedelta
+from datetime import timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import or_, select
 
+from app.core.utils import today_br
+
 from .config import settings
 from .database import async_session_maker
 from .services.email_service import email_service
 from .utils import utc_now
-from app.core.utils import today_br
 
 logger = logging.getLogger(__name__)
 

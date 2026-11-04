@@ -8,9 +8,8 @@ from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.utils import today_br
 
-from app.core.utils import utc_now
+from app.core.utils import today_br, utc_now
 from app.models.account import Account
 from app.models.category import Category
 from app.models.credit_card import CreditCard

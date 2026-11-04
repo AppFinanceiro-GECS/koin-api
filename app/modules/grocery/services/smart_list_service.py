@@ -5,15 +5,15 @@ Smart List Service - LLM-powered intelligent shopping list generation
 import json
 import logging
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from app.core.utils import today_br
 
 from app.core.ai_usage import AIUnavailable, metered, tracked_call
 from app.core.config import settings
+from app.core.utils import today_br
 from app.models.grocery import (
     GroceryCategory,
     GroceryPurchase,

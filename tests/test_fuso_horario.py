@@ -1,7 +1,9 @@
-import pytest
-from freezegun import freeze_time
-from app.core.utils import today_br
 from datetime import date
+
+from freezegun import freeze_time
+
+from app.core.utils import today_br
+
 
 # Congela o relógio UTC exatamente em 02:30 do dia 16.
 # Isso equivale a 23:30 do dia 15 no fuso de Brasília.

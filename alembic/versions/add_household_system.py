@@ -70,7 +70,9 @@ def upgrade() -> None:
     for table in tables_with_ownership:
         with op.batch_alter_table(table) as batch_op:
             batch_op.add_column(
-                sa.Column("ownership_type", sa.String(20), server_default="personal", nullable=False)
+                sa.Column(
+                    "ownership_type", sa.String(20), server_default="personal", nullable=False
+                )
             )
 
     # 4. Migrar dados existentes: criar HouseholdMember para cada usuario com licenca
@@ -111,7 +113,7 @@ def downgrade() -> None:
     # Remover colunas owner da tabela licenses em blocos separados
     with op.batch_alter_table("licenses") as batch_op:
         batch_op.drop_constraint("fk_licenses_owner_user_id", type_="foreignkey")
-        
+
     with op.batch_alter_table("licenses") as batch_op:
         batch_op.drop_column("owner_user_id")
         batch_op.drop_column("owner_email")

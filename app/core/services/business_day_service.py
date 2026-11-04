@@ -4,7 +4,9 @@ Considera feriados nacionais fixos e móveis.
 """
 
 from datetime import date, timedelta
+
 from app.core.utils import today_br
+
 
 def get_brazilian_holidays(year: int) -> list[date]:
     """

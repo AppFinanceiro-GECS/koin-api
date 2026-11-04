@@ -9,9 +9,9 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select
-from app.core.utils import today_br
 
 from app.core.deps import CurrentUser, DbSession
+from app.core.utils import today_br
 from app.models.credit_card import CreditCard
 from app.models.installment import InstallmentSeries
 from app.models.transaction import Transaction

@@ -5,9 +5,10 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from app.core.utils import today_br
 from app.models.goal import GoalStatus, GoalType
 from app.models.household import OwnershipType
-from app.core.utils import today_br
+
 
 class GoalContributionBase(BaseModel):
     amount: Decimal = Field(..., gt=0)

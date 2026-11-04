@@ -12,8 +12,8 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from app.core.utils import today_br
 
+from app.core.utils import today_br
 from app.models import (
     Account,
     CreditCardInvoice,

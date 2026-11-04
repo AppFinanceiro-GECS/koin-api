@@ -1,11 +1,9 @@
 """Endpoints de Orçamento (Budget)"""
 
-from datetime import date
-
 from fastapi import APIRouter, Query
-from app.core.utils import today_br
 
 from app.core.deps import CurrentUser, DbSession
+from app.core.utils import today_br
 from app.modules.budgets.schemas.budget import (
     BudgetComparisonResponse,
     BudgetCopyRequest,
@@ -156,7 +154,7 @@ async def transfer_budget(
     current_user: CurrentUser,
     db: DbSession,
     year: int = Query(default_factory=lambda: today_br().year),
-    month: int = Query(default_factory=lambda:today_br().month, ge=1, le=12),
+    month: int = Query(default_factory=lambda: today_br().month, ge=1, le=12),
 ):
     """
     Transfere orçamento entre categorias.

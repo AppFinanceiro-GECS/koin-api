@@ -7,15 +7,13 @@ Handles CRUD operations for automation rules and their execution.
 from __future__ import annotations
 
 import logging
-from datetime import date
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.utils import today_br
 
-from app.core.utils import utc_now
+from app.core.utils import today_br, utc_now
 from app.models import (
     Account,
     ActionType,
