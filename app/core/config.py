@@ -15,8 +15,10 @@ class Settings(BaseSettings):
     # JWT
     secret_key: str = "dev-secret-key-change-in-production"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
-    refresh_token_expire_days: int = 7
+    # Access curto; refresh longo com rotação e revogação (#45): quem abre o app a cada
+    # poucas semanas continua logado, e logout/troca de senha derrubam a sessão.
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 60
 
     # App
     debug: bool = False  # SQL echo desabilitado por padrao para performance

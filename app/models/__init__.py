@@ -87,6 +87,7 @@ from .receipt import (
     ReceiptStatus,
 )
 from .recurring import RecurrenceFrequency, RecurringStatus, RecurringTransaction
+from .refresh_token import RefreshToken
 from .rule import UserMerchantRule
 from .transaction import Transaction, TransactionAudit
 from .transaction_payment import TransactionPayment
@@ -98,6 +99,7 @@ __all__ = [
     "LicenseStatus",
     "User",
     "LoginAttempt",
+    "RefreshToken",
     "Account",
     "HouseholdMember",
     "HouseholdRole",

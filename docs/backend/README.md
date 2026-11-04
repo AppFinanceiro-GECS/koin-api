@@ -215,8 +215,8 @@ DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/koin
 # JWT
 SECRET_KEY=your-secret-key
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=7
+ACCESS_TOKEN_EXPIRE_MINUTES=15
+REFRESH_TOKEN_EXPIRE_DAYS=60
 
 # LLM Providers
 VISION_PROVIDER=google  # google, openai, anthropic, mistral

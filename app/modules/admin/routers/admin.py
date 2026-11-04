@@ -29,6 +29,7 @@ from app.modules.admin.schemas.admin import (
     UserListResponse,
 )
 from app.modules.auth.schemas.invitation import InvitationCreate, InvitationListResponse
+from app.modules.auth.services import session_service
 from app.modules.auth.services.password_reset import assign_reset_token
 from app.modules.auth.services.user_setup import setup_new_user
 
@@ -789,6 +790,10 @@ async def update_user(
 
     for key, value in update_data.items():
         setattr(user, key, value)
+
+    # senha nova ou usuário desativado: as sessões abertas deixam de valer
+    if "hashed_password" in update_data or update_data.get("is_active") is False:
+        await session_service.revoke_all(db, user.id)
 
     await db.commit()
     await db.refresh(user)

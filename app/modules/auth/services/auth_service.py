@@ -9,18 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.email_address import normalize_email
-from app.core.security import (
-    create_access_token,
-    create_refresh_token,
-    decode_token,
-    get_password_hash,
-    verify_password,
-)
+from app.core.security import get_password_hash, verify_password
 from app.core.utils import utc_now
 from app.models.login_attempt import LoginAttempt
 from app.models.user import User
 from app.modules.auth.schemas.auth import Token
 from app.modules.auth.schemas.user import UserCreate
+from app.modules.auth.services import session_service
 
 # Bloqueio progressivo por e-mail (sobrevive a deploy, guardado no Postgres).
 # Limite de IP (flood grosseiro) fica no slowapi, em app/modules/auth/routers/auth.py.
@@ -54,7 +49,7 @@ class AuthService:
         await self.db.refresh(user)
         return user
 
-    async def login(self, email: str, password: str) -> Token:
+    async def login(self, email: str, password: str, device_name: str | None = None) -> Token:
         email = normalize_email(email)
         attempt = await self._get_or_create_login_attempt(email)
 
@@ -85,10 +80,9 @@ class AuthService:
 
         await self._reset_login_attempt(attempt)
 
-        return Token(
-            access_token=create_access_token(user.id),
-            refresh_token=create_refresh_token(user.id),
-        )
+        token, _ = await session_service.issue_tokens(self.db, user, device_name)
+        await self.db.commit()
+        return token
 
     async def _get_or_create_login_attempt(self, email: str) -> LoginAttempt:
         result = await self.db.execute(select(LoginAttempt).where(LoginAttempt.email == email))
@@ -126,25 +120,4 @@ class AuthService:
         await self.db.commit()
 
     async def refresh_token(self, refresh_token: str) -> Token:
-        payload = decode_token(refresh_token)
-
-        if not payload or payload.get("type") != "refresh":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token de refresh inválido",
-            )
-
-        user_id = payload.get("sub")
-        result = await self.db.execute(select(User).where(User.id == int(user_id)))
-        user = result.scalar_one_or_none()
-
-        if not user or not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Usuário não encontrado ou inativo",
-            )
-
-        return Token(
-            access_token=create_access_token(user.id),
-            refresh_token=create_refresh_token(user.id),
-        )
+        return await session_service.rotate(self.db, refresh_token)

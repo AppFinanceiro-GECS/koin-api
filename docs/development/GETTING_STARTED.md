@@ -50,8 +50,8 @@ DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/koin
 # JWT
 SECRET_KEY=development-secret-key-change-in-production
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=7
+ACCESS_TOKEN_EXPIRE_MINUTES=15
+REFRESH_TOKEN_EXPIRE_DAYS=60
 
 # LLM Provider (escolha um)
 VISION_PROVIDER=google
