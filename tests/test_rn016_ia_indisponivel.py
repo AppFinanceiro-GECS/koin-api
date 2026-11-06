@@ -9,6 +9,7 @@ from datetime import timedelta
 
 import pytest
 from fastapi import BackgroundTasks, UploadFile
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import settings
@@ -310,3 +311,38 @@ def test_backoff_cresce_e_tem_teto():
     assert first == AI_BUSY.retry_after
     assert second == AI_BUSY.retry_after * 2
     assert huge == ai_failures.MAX_RETRY_DELAY
+
+
+# ---------- #37: etapa da leitura ----------
+
+
+async def test_etapas_ate_concluir(db_session, monkeypatch):
+    user = await _user(db_session)
+    seen = []
+
+    async def extract(self, *args, **kwargs):
+        doc = await db_session.scalar(select(Document))
+        await db_session.refresh(doc)
+        seen.append(doc.stage)
+        return OK
+
+    monkeypatch.setattr(LLMOCRService, "extract_from_image", extract)
+    response, document = await _upload_async(db_session, user)
+
+    assert response.stage == "received"
+    assert seen == ["extracting"]
+    assert document.stage == "done"
+
+
+async def test_etapa_na_fila_e_na_falha(db_session, monkeypatch):
+    user = await _user(db_session)
+    fake_ai(monkeypatch, {"items": [], "error": "503 UNAVAILABLE"})
+    _, waiting = await _upload_async(db_session, user)
+    assert waiting.stage == "waiting"
+
+    fake_ai(monkeypatch, {"items": [], "error": "Expecting value"})
+    waiting.next_retry_at = utc_now() - timedelta(seconds=1)
+    await db_session.commit()
+    await svc.retry_waiting_documents()
+    await db_session.refresh(waiting)
+    assert waiting.stage == "failed"
