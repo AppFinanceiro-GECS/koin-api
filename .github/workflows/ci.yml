@@ -41,13 +41,13 @@ jobs:
         run: ruff check .
       - name: Format check (ruff format)
         run: ruff format --check .
-      # Piso de cobertura (#28): começou em 48%; suba o piso quando a cobertura subir (#40)
+      # Piso de cobertura (#28): 48% no início, 57% depois do #40; suba junto com a cobertura
       - name: Run tests
         run: |
           set -o pipefail
-          pytest tests/ -v --cov=app --cov-report=term --cov-fail-under=45 | tee pytest.out
+          pytest tests/ -v --cov=app --cov-report=term --cov-fail-under=55 | tee pytest.out
           echo "### Cobertura" >> "$GITHUB_STEP_SUMMARY"
-          grep '^TOTAL' pytest.out | awk '{print "Total: **" $NF "** (piso 45%)"}' >> "$GITHUB_STEP_SUMMARY"
+          grep '^TOTAL' pytest.out | awk '{print "Total: **" $NF "** (piso 55%)"}' >> "$GITHUB_STEP_SUMMARY"
         env:
           DATABASE_URL: sqlite+aiosqlite:///./test.db
           SECRET_KEY: test-secret-key

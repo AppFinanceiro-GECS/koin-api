@@ -30,3 +30,8 @@ ignore = [
 "!app/**" = ["T201"]  # print permitido somente fora do codigo de aplicacao
 "**/__init__.py" = ["F401"]   # barrels re-exportam simbolos
 "app/models/*.py" = ["F821"]  # forward references (strings) em relationships SQLAlchemy
+
+[tool.coverage.run]
+# SQLAlchemy assíncrono alterna o código entre greenlets; sem isso o coverage perde as
+# linhas executadas dentro das rotas e dos serviços (subestimava a cobertura)
+concurrency = ["greenlet", "thread"]
