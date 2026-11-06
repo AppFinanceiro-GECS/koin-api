@@ -1,0 +1,35 @@
+meta {
+  name: Compra no cartão
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v1/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "description": "Mercado (teste)",
+    "amount": "42.90",
+    "date": "2026-11-05",
+    "type": "expense",
+    "account_id": {{cardAccountId}},
+    "credit_card_id": {{cardId}}
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("transactionId", res.body.id);
+  bru.setEnvVar("invoiceId", res.body.invoice_id);
+}
+
+docs {
+  Compra depois do fechamento cai na fatura seguinte (RN003). Ajuste a data.
+}

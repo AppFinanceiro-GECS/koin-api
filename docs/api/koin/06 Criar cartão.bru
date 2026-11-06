@@ -1,0 +1,30 @@
+meta {
+  name: Criar cartão
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/credit-cards
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "name": "Cartão de teste",
+    "credit_limit": 3000,
+    "closing_day": 10,
+    "due_day": 17,
+    "last_four_digits": "1234"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("cardId", res.body.id);
+  bru.setEnvVar("cardAccountId", res.body.account_id);
+}

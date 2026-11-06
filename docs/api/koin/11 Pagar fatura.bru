@@ -1,0 +1,27 @@
+meta {
+  name: Pagar fatura
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/api/v1/invoices/{{invoiceId}}/pay
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "amount": 42.9,
+    "payment_account_id": {{bankAccountId}},
+    "payment_method": "pix"
+  }
+}
+
+docs {
+  Pagamento menor que o total deixa a fatura partial (RN010). Cartão como origem é recusado (RN006).
+}

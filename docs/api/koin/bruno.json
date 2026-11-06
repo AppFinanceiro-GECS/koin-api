@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Koin API",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
