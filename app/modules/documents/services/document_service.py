@@ -114,6 +114,39 @@ def mark_failure(
     return failure
 
 
+async def notify_document_result(db: AsyncSession, document: Document) -> None:
+    """#43: o upload assíncrono termina com o app fechado; a notificação vira push.
+    waiting_ai não avisa: a leitura ainda vai acontecer."""
+    from app.models.notification import NotificationPriority, NotificationType
+    from app.modules.notifications.services.notification_service import NotificationService
+
+    if document.status == DocumentStatus.COMPLETED:
+        count = len((document.extracted_data or {}).get("items") or [])
+        kind = NotificationType.DOCUMENT_PROCESSED
+        title = "Fatura lida"
+        message = f"{count} {'compra pronta' if count == 1 else 'compras prontas'} para conferir."
+        priority = NotificationPriority.NORMAL
+    elif document.status == DocumentStatus.FAILED:
+        kind = NotificationType.DOCUMENT_FAILED
+        title = "Não conseguimos ler o arquivo"
+        message = document.error_message or "Tente enviar de novo."
+        priority = NotificationPriority.HIGH
+    else:
+        return
+    await NotificationService(db).send_notification(
+        user_id=document.user_id,
+        notification_type=kind,
+        title=title,
+        message=message,
+        entity_type="document",
+        entity_id=document.id,
+        action_url=f"/documents/{document.id}",
+        action_label="Conferir",
+        priority=priority,
+        icon="file-text",
+    )
+
+
 def wait_for_ai(document: Document) -> None:
     """Disjuntor aberto: guarda o documento sem chamar a IA"""
     document.status = DocumentStatus.WAITING_AI
@@ -250,6 +283,7 @@ async def process_document_background(
                 )
 
             document.processed_at = utc_now()
+            await notify_document_result(db, document)
             await db.commit()
 
         except Exception as e:

@@ -25,7 +25,12 @@ class NotificationType(str, Enum):
     INVOICE_DUE_7_DAYS = "invoice_due_7_days"
     INVOICE_DUE_3_DAYS = "invoice_due_3_days"
     INVOICE_DUE_1_DAY = "invoice_due_1_day"
+    INVOICE_DUE_TODAY = "invoice_due_today"
     INVOICE_OVERDUE = "invoice_overdue"
+
+    # Leitura de fatura enviada (#43): o upload assíncrono termina depois que o app saiu da tela
+    DOCUMENT_PROCESSED = "document_processed"
+    DOCUMENT_FAILED = "document_failed"
 
     # Faturas pendentes de carregamento
     INVOICE_MISSING_CURRENT = (

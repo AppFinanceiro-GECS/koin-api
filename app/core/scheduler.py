@@ -101,6 +101,20 @@ async def task_purge_expired_documents():
         logger.exception(f"Error purging expired documents: {e}")
 
 
+async def task_send_pending_push_notifications():
+    from app.modules.notifications.services.push_delivery import deliver_pending_push
+
+    if DRY_RUN:
+        return
+    try:
+        async with async_session_maker() as session:
+            sent = await deliver_pending_push(session)
+        if sent:
+            logger.info(f"Scheduler: push notifications — {sent} sent")
+    except Exception as e:
+        logger.exception(f"Error sending push notifications: {e}")
+
+
 # ===== Alert Tasks =====
 
 
@@ -447,10 +461,11 @@ async def task_process_threshold_automations():
 # (módulo dono, função, gatilho, id). Job de módulo desligado não é agendado (#42)
 JOBS = [
     # Alert tasks — same schedule as old Celery Beat
+    # 9h de Brasília (#43): o lembrete de vencimento chega por push no começo do dia
     (
         "invoices",
         task_check_invoice_due_dates,
-        CronTrigger(hour=8, minute=0),
+        CronTrigger(hour=9, minute=0),
         "check_invoice_due_dates",
     ),
     (
@@ -479,6 +494,13 @@ JOBS = [
         task_send_pending_email_notifications,
         IntervalTrigger(minutes=5),
         "send_pending_email_notifications",
+    ),
+    # Push pelo Expo (#43) — a cada 2 minutos
+    (
+        "notifications",
+        task_send_pending_push_notifications,
+        IntervalTrigger(minutes=2),
+        "send_pending_push_notifications",
     ),
     # Recurring transaction generation — run daily at 6:00 AM
     (

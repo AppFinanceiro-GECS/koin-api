@@ -2,16 +2,20 @@
 Rotas de usuario: perfil, alteracao de senha, exportacao e exclusao (LGPD).
 """
 
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
-from pydantic import BaseModel
-from sqlalchemy import select
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy import delete, select
 
 from app.core.deps import CurrentUser, DbSession, security
 from app.core.security import get_password_hash, validate_password_or_raise, verify_password
 from app.core.services.email_service import email_service
+from app.core.services.push_service import is_expo_token
+from app.core.utils import utc_now
+from app.models.push_device import PushDevice
 from app.models.refresh_token import RefreshToken
 from app.modules.auth.schemas.auth import SessionResponse
 from app.modules.auth.schemas.user import ChangePassword, UserResponse, UserUpdate
@@ -21,6 +25,29 @@ from app.modules.auth.services.user_service import UserService
 router = APIRouter()
 
 BearerCredentials = Annotated[HTTPAuthorizationCredentials, Depends(security)]
+
+
+class DeviceRegister(BaseModel):
+    expo_push_token: str = Field(max_length=200)
+    platform: Literal["ios", "android"]
+    app_version: str | None = Field(None, max_length=30)
+
+    @field_validator("expo_push_token")
+    @classmethod
+    def expo_format(cls, value: str) -> str:
+        if not is_expo_token(value):
+            raise ValueError("Token de push do Expo inválido (ExponentPushToken[...])")
+        return value
+
+
+class DeviceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    platform: str
+    app_version: str | None
+    created_at: datetime
+    last_seen_at: datetime
 
 
 class DeleteAccountRequest(BaseModel):
@@ -94,6 +121,45 @@ async def revoke_session(session_id: str, current_user: CurrentUser, db: DbSessi
     if owned is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessão não encontrada")
     await session_service.revoke_family(db, session_id)
+    await db.commit()
+
+
+@router.post("/me/devices", response_model=DeviceResponse)
+async def register_device(data: DeviceRegister, current_user: CurrentUser, db: DbSession):
+    """Registra o aparelho para push (#43). Chamar a cada abertura do app: atualiza a
+    versão e o último acesso. Token já usado por outra conta passa para esta."""
+    device = await db.scalar(
+        select(PushDevice).where(PushDevice.expo_push_token == data.expo_push_token)
+    )
+    now = utc_now()
+    if device is None:
+        device = PushDevice(expo_push_token=data.expo_push_token, created_at=now)
+        db.add(device)
+    device.user_id = current_user.id
+    device.platform = data.platform
+    device.app_version = data.app_version
+    device.last_seen_at = now
+    await db.commit()
+    await db.refresh(device)
+    return device
+
+
+@router.get("/me/devices", response_model=list[DeviceResponse])
+async def list_devices(current_user: CurrentUser, db: DbSession):
+    return (
+        await db.execute(select(PushDevice).where(PushDevice.user_id == current_user.id))
+    ).scalars()
+
+
+@router.delete("/me/devices/{expo_push_token}", status_code=status.HTTP_204_NO_CONTENT)
+async def unregister_device(expo_push_token: str, current_user: CurrentUser, db: DbSession):
+    """Para de mandar push para o aparelho (chamar no logout). Idempotente."""
+    await db.execute(
+        delete(PushDevice).where(
+            PushDevice.expo_push_token == expo_push_token,
+            PushDevice.user_id == current_user.id,
+        )
+    )
     await db.commit()
 
 
