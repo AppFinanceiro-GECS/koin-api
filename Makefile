@@ -60,10 +60,13 @@ prod-logs: ## Logs da stack de produção
 # ==================== Sem Docker ====================
 
 install: ## Cria venv e instala dependências
-	python3 -m venv venv && . venv/bin/activate && pip install -r requirements.txt ruff
+	python3 -m venv venv && . venv/bin/activate && pip install -r requirements.txt && pip install ruff
 
 dev: env ## Roda a API local com reload (SQLite)
 	. venv/bin/activate && alembic upgrade head && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+lock: ## Regera o requirements.txt travado com hash a partir do requirements.in (requer uv)
+	uv pip compile requirements.in --universal --python-version 3.12 --generate-hashes -o requirements.txt
 
 test: ## Roda os testes
 	. venv/bin/activate && pytest

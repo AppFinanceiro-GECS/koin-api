@@ -1,13 +1,18 @@
 version: 2
 updates:
+  # Política (#32): patch entra sozinho com CI verde (auto-merge, ver
+  # .github/workflows/dependabot-automerge.yml); minor e major pedem revisão.
+  # O requirements.txt é um lock com hash gerado do requirements.in (make lock).
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: weekly
       day: monday
     groups:
-      python-minor-patch:
-        update-types: [minor, patch]
+      python-patch:
+        update-types: [patch]
+      python-minor:
+        update-types: [minor]
     open-pull-requests-limit: 5
 
   - package-ecosystem: docker

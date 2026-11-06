@@ -1,0 +1,25 @@
+name: Dependabot auto-merge
+
+# Patch do Dependabot entra sozinho quando o CI passa (#32); minor e major ficam para revisão.
+# Desligado até a main exigir os checks (ruleset do #26): sem checks obrigatórios o
+# auto-merge do GitHub entraria na hora. Para ligar: variável DEPENDABOT_AUTOMERGE=true
+# no repositório e "Allow auto-merge" nas configurações.
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]' && vars.DEPENDABOT_AUTOMERGE == 'true'
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v2
+      - name: Auto-merge de patch
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

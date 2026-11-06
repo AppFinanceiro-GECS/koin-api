@@ -35,7 +35,7 @@ source venv/bin/activate  # Linux/Mac
 # ou: venv\Scripts\activate  # Windows
 
 # Instalar dependencias
-pip install -r requirements.txt
+pip install -r requirements.txt   # versões travadas com hash; para mudar dependência, edite requirements.in e rode make lock
 
 # Copiar arquivo de ambiente
 cp .env.example .env
