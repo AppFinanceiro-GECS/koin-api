@@ -33,6 +33,19 @@ from app.models.user import User
 
 from .notification_service import NotificationService
 
+# Fatura que ainda pede pagamento. O GET /invoices passa a fatura para closed depois do
+# fechamento e para overdue depois do vencimento; olhar só open calava os lembretes de
+# D-3/D-1 e o aviso de vencida.
+UNPAID_STATUSES = (
+    InvoiceStatus.OPEN.value,
+    InvoiceStatus.CLOSED.value,
+    InvoiceStatus.PARTIAL.value,
+)
+
+
+def _amount_due(invoice: CreditCardInvoice) -> Decimal:
+    return (invoice.total_amount or Decimal(0)) - (invoice.paid_amount or Decimal(0))
+
 
 class AlertEngine:
     """Engine for detecting financial alerts and generating notifications."""
@@ -62,10 +75,10 @@ class AlertEngine:
         today = today_br()
         count = 0
 
-        # Get open invoices
+        # Faturas a pagar com vencimento à frente
         query = select(CreditCardInvoice).where(
             CreditCardInvoice.user_id == user.id,
-            CreditCardInvoice.status == InvoiceStatus.OPEN.value,
+            CreditCardInvoice.status.in_(UNPAID_STATUSES),
             CreditCardInvoice.due_date >= today,
         )
         result = await self.db.execute(query)
@@ -85,7 +98,7 @@ class AlertEngine:
             elif days_until_due == 1:
                 notification_type = NotificationType.INVOICE_DUE_1_DAY
 
-            if notification_type:
+            if notification_type and _amount_due(invoice) > 0:
                 if not await self._notification_exists(
                     user.id, notification_type, "invoice", invoice.id
                 ):
@@ -97,7 +110,7 @@ class AlertEngine:
                             if days_until_due == 0
                             else f"Fatura vence em {days_until_due} {'dia' if days_until_due == 1 else 'dias'}"
                         ),
-                        message=f"A fatura de R$ {invoice.total_amount:.2f} vence em {invoice.due_date.strftime('%d/%m')}.",
+                        message=f"A fatura de R$ {_amount_due(invoice):.2f} vence em {invoice.due_date.strftime('%d/%m')}.",
                         entity_type="invoice",
                         entity_id=invoice.id,
                         action_url=f"/invoices/{invoice.id}",
@@ -113,13 +126,15 @@ class AlertEngine:
         # Check overdue invoices
         overdue_query = select(CreditCardInvoice).where(
             CreditCardInvoice.user_id == user.id,
-            CreditCardInvoice.status == InvoiceStatus.OPEN.value,
+            CreditCardInvoice.status.in_((*UNPAID_STATUSES, InvoiceStatus.OVERDUE.value)),
             CreditCardInvoice.due_date < today,
         )
         overdue_result = await self.db.execute(overdue_query)
         overdue_invoices = overdue_result.scalars().all()
 
         for invoice in overdue_invoices:
+            if _amount_due(invoice) <= 0:
+                continue
             if not await self._notification_exists(
                 user.id, NotificationType.INVOICE_OVERDUE, "invoice", invoice.id
             ):
@@ -128,7 +143,7 @@ class AlertEngine:
                     user_id=user.id,
                     notification_type=NotificationType.INVOICE_OVERDUE,
                     title="Fatura vencida!",
-                    message=f"A fatura de R$ {invoice.total_amount:.2f} está vencida há {days_overdue} {'dia' if days_overdue == 1 else 'dias'}.",
+                    message=f"A fatura de R$ {_amount_due(invoice):.2f} está vencida há {days_overdue} {'dia' if days_overdue == 1 else 'dias'}.",
                     entity_type="invoice",
                     entity_id=invoice.id,
                     action_url=f"/invoices/{invoice.id}",
@@ -237,29 +252,41 @@ class AlertEngine:
         """Check for credit card limit warnings."""
         count = 0
 
-        query = select(CreditCard).where(
-            CreditCard.user_id == user.id,
-            CreditCard.is_active == True,
+        # O nome do cartão é o da conta vinculada (CreditCard não tem name)
+        query = (
+            select(CreditCard, Account.name)
+            .join(Account, Account.id == CreditCard.account_id)
+            .where(
+                CreditCard.user_id == user.id,
+                CreditCard.is_active == True,
+            )
         )
         result = await self.db.execute(query)
-        cards = result.scalars().all()
+        cards = result.all()
 
-        for card in cards:
+        for card, card_name in cards:
             if not card.credit_limit or card.credit_limit <= 0:
                 continue
 
-            # Get current invoice total
-            invoice_query = select(CreditCardInvoice).where(
-                CreditCardInvoice.credit_card_id == card.id,
-                CreditCardInvoice.status == InvoiceStatus.OPEN.value,
+            # Limite comprometido = tudo que ainda falta pagar, inclusive parcelas futuras
+            # (um cartão parcelado tem várias faturas abertas ao mesmo tempo)
+            used = await self.db.scalar(
+                select(
+                    func.coalesce(
+                        func.sum(
+                            CreditCardInvoice.total_amount
+                            - func.coalesce(CreditCardInvoice.paid_amount, 0)
+                        ),
+                        0,
+                    )
+                ).where(
+                    CreditCardInvoice.credit_card_id == card.id,
+                    CreditCardInvoice.status.in_((*UNPAID_STATUSES, InvoiceStatus.OVERDUE.value)),
+                )
             )
-            invoice_result = await self.db.execute(invoice_query)
-            current_invoice = invoice_result.scalar_one_or_none()
-
-            if not current_invoice:
+            used = Decimal(used or 0)
+            if used <= 0:
                 continue
-
-            used = current_invoice.total_amount or Decimal(0)
             percentage = float(used / card.credit_limit * 100)
 
             if percentage >= 100:
@@ -270,7 +297,7 @@ class AlertEngine:
                         user_id=user.id,
                         notification_type=NotificationType.CREDIT_LIMIT_EXCEEDED,
                         title="Limite do cartão excedido!",
-                        message=f"O cartão {card.name} excedeu o limite de R$ {card.credit_limit:.2f}.",
+                        message=f"O cartão {card_name} excedeu o limite de R$ {card.credit_limit:.2f}.",
                         entity_type="credit_card",
                         entity_id=card.id,
                         action_url=f"/credit-cards/{card.id}",
@@ -288,7 +315,7 @@ class AlertEngine:
                         user_id=user.id,
                         notification_type=NotificationType.CREDIT_LIMIT_80,
                         title="Limite do cartão em 80%",
-                        message=f"O cartão {card.name} está com {percentage:.0f}% do limite usado.",
+                        message=f"O cartão {card_name} está com {percentage:.0f}% do limite usado.",
                         entity_type="credit_card",
                         entity_id=card.id,
                         action_url=f"/credit-cards/{card.id}",
