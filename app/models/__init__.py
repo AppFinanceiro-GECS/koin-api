@@ -80,6 +80,7 @@ from .notification import (
     NotificationType,
     PushSubscription,
 )
+from .push_device import PushDevice
 from .receipt import (
     RECEIPT_STATUS_DISPLAY,
     Receipt,
@@ -149,6 +150,7 @@ __all__ = [
     "NotificationPreference",
     "NotificationSettings",
     "PushSubscription",
+    "PushDevice",
     "NotificationType",
     "NotificationPriority",
     "NotificationFrequency",

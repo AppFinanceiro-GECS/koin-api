@@ -76,7 +76,9 @@ class AlertEngine:
 
             # Check if notification already sent
             notification_type = None
-            if days_until_due == 7:
+            if days_until_due == 0:
+                notification_type = NotificationType.INVOICE_DUE_TODAY
+            elif days_until_due == 7:
                 notification_type = NotificationType.INVOICE_DUE_7_DAYS
             elif days_until_due == 3:
                 notification_type = NotificationType.INVOICE_DUE_3_DAYS
@@ -90,7 +92,11 @@ class AlertEngine:
                     await self.notification_service.send_notification(
                         user_id=user.id,
                         notification_type=notification_type,
-                        title=f"Fatura vence em {days_until_due} {'dia' if days_until_due == 1 else 'dias'}",
+                        title=(
+                            "Fatura vence hoje"
+                            if days_until_due == 0
+                            else f"Fatura vence em {days_until_due} {'dia' if days_until_due == 1 else 'dias'}"
+                        ),
                         message=f"A fatura de R$ {invoice.total_amount:.2f} vence em {invoice.due_date.strftime('%d/%m')}.",
                         entity_type="invoice",
                         entity_id=invoice.id,
