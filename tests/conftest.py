@@ -1,6 +1,9 @@
+import os
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.database import Base
@@ -15,8 +18,9 @@ from app.models.user import User
 
 pytest_plugins = ["tests.live_support"]
 
-# Use in-memory SQLite for tests
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# SQLite em memória por padrão; o CI também roda contra Postgres (#28), onde aparecem
+# bugs que o SQLite esconde (ex.: lazy-load em sessão assíncrona, #33)
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -27,15 +31,24 @@ async def test_engine():
         echo=False,
     )
 
+    await _reset_schema(engine)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-
+    await _reset_schema(engine)
     await engine.dispose()
+
+
+async def _reset_schema(engine) -> None:
+    """Postgres: há ciclo de FKs entre tabelas e o drop_all não consegue ordenar o DROP"""
+    async with engine.begin() as conn:
+        if engine.dialect.name == "postgresql":
+            await conn.execute(text("DROP SCHEMA public CASCADE"))
+            await conn.execute(text("CREATE SCHEMA public"))
+        else:
+            await conn.run_sync(Base.metadata.drop_all)
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -50,13 +63,16 @@ async def db_session(test_engine):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(db_session):
+async def client(db_session, test_engine, monkeypatch):
     """Create test client with database override."""
+    import app.main as main_module
 
     async def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    # /health consulta o engine direto; o global ficaria preso a outro event loop no Postgres
+    monkeypatch.setattr(main_module, "engine", test_engine)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

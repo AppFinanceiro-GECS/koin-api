@@ -51,6 +51,8 @@ class Settings(BaseSettings):
 
     # Storage
     upload_dir: str = "./uploads"
+    # Dias até apagar o original de fatura confirmada ou falha (#50); 0 desliga
+    document_retention_days: int = 30
 
     # LLM/Vision API (para OCR inteligente e Chat)
     # Providers suportados: google (gratuito), mistral (melhor custo-benefício)
