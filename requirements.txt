@@ -40,6 +40,7 @@ httpx>=0.28.1,<1.0.0
 pytest==9.1.1
 pytest-asyncio==1.4.0
 freezegun==1.5.5
+pytest-cov==7.1.0
 
 # Utilities
 python-dateutil==2.9.0.post0
