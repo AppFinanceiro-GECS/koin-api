@@ -1,0 +1,24 @@
+meta {
+  name: Contas
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/accounts
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  const banco = res.body.find(a => a.name === "Banco");
+  if (banco) bru.setEnvVar("bankAccountId", banco.id);
+}
+
+docs {
+  Saldo calculado (inicial + lançamentos). Guarda o id da conta Banco.
+}

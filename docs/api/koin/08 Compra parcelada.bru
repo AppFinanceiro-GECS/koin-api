@@ -1,0 +1,34 @@
+meta {
+  name: Compra parcelada
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "description": "Notebook (teste)",
+    "amount": "420.00",
+    "date": "2026-11-05",
+    "type": "expense",
+    "account_id": {{cardAccountId}},
+    "credit_card_id": {{cardId}},
+    "is_installment": true,
+    "installment_current": 1,
+    "installment_total": 10,
+    "create_future_installments": true
+  }
+}
+
+docs {
+  Cria as 9 parcelas futuras, uma por fatura (RN005).
+}

@@ -1,0 +1,15 @@
+meta {
+  name: Health
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/health
+  body: none
+  auth: none
+}
+
+docs {
+  Banco, versão, commit, módulos ativos e estado da IA (ok | degraded | quota_exhausted).
+}

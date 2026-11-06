@@ -1,0 +1,19 @@
+meta {
+  name: Status da leitura
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{baseUrl}}/api/v1/documents/{{documentId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  stage: received → extracting → validating → done (ou waiting / failed). Em waiting_ai, error_code e next_retry_at dizem o motivo e quando tenta de novo (RN016).
+}

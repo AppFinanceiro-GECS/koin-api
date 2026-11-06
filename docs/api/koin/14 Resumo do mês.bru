@@ -1,0 +1,19 @@
+meta {
+  name: Resumo do mês
+  type: http
+  seq: 14
+}
+
+get {
+  url: {{baseUrl}}/api/v1/analytics/summary?year=2026&month=11
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  Pagamento de fatura não entra como despesa (RN008).
+}

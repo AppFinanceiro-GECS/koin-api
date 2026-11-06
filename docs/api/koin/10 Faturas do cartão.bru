@@ -1,0 +1,15 @@
+meta {
+  name: Faturas do cartão
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/api/v1/invoices?credit_card_id={{cardId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

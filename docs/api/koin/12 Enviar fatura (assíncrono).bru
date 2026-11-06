@@ -1,0 +1,27 @@
+meta {
+  name: Enviar fatura (assíncrono)
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/api/v1/documents/async
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:multipart-form {
+  file: @file(../../../tests/fixtures/documents/nubank.pdf)
+}
+
+script:post-response {
+  bru.setEnvVar("documentId", res.body.id);
+}
+
+docs {
+  Fatura sintética do repositório. Responde 202; acompanhe em Status da leitura. Gasta cota da IA da hml.
+}
