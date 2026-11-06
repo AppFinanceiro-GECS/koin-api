@@ -50,6 +50,8 @@ class Document(Base):
     attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # Início do processamento atual: processing antigo = processo reiniciado no meio
     processing_started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Retenção (#50): original e extracted_data apagados; a linha fica para o hash e o vínculo
+    file_purged_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime)
     # Dados extraidos (para async processing)
