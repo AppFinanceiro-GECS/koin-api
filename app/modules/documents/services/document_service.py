@@ -18,7 +18,7 @@ from app.core.config import settings
 from app.core.database import async_session_maker
 from app.core.utils import utc_now
 from app.models.credit_card import CreditCard
-from app.models.document import Document, DocumentStatus
+from app.models.document import Document, DocumentStage, DocumentStatus
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.modules.documents.services.ai_failures import (
@@ -63,12 +63,14 @@ MAX_STALE_ATTEMPTS = 3
 
 def mark_processing(document: Document) -> None:
     document.status = DocumentStatus.PROCESSING
+    document.stage = DocumentStage.EXTRACTING
     document.processing_started_at = utc_now()
     document.next_retry_at = None
 
 
 def mark_completed(document: Document) -> None:
     document.status = DocumentStatus.COMPLETED
+    document.stage = DocumentStage.DONE
     document.error_code = None
     document.error_message = None
     document.next_retry_at = None
@@ -90,12 +92,15 @@ def mark_failure(
 
     if failure.retry_after is None or not retry:
         document.status = DocumentStatus.FAILED
+        document.stage = DocumentStage.FAILED
     else:
         document.attempts = (document.attempts or 0) + 1
         if document.attempts >= MAX_AI_ATTEMPTS:
             document.status = DocumentStatus.FAILED
+            document.stage = DocumentStage.FAILED
         else:
             document.status = DocumentStatus.WAITING_AI
+            document.stage = DocumentStage.WAITING
             document.next_retry_at = next_retry_at(failure, document.attempts)
             ai_circuit.record(failure, document.next_retry_at)
 
@@ -145,6 +150,7 @@ async def notify_document_result(db: AsyncSession, document: Document) -> None:
 def wait_for_ai(document: Document) -> None:
     """Disjuntor aberto: guarda o documento sem chamar a IA"""
     document.status = DocumentStatus.WAITING_AI
+    document.stage = DocumentStage.WAITING
     document.error_code = AI_QUOTA_EXHAUSTED.code
     document.error_message = AI_QUOTA_EXHAUSTED.message
     document.next_retry_at = ai_circuit.paused_until
@@ -210,6 +216,7 @@ async def process_document_background(
 
             if not user:
                 document.status = DocumentStatus.FAILED
+                document.stage = DocumentStage.FAILED
                 document.error_message = "Usuario nao encontrado"
                 await db.commit()
                 return
@@ -242,6 +249,9 @@ async def process_document_background(
             if extraction_data is None or extraction_data.get("error"):
                 mark_failure(document, extraction_data.get("error") if extraction_data else None)
             else:
+                # o app acompanha pelo GET /documents/{id}: grava a etapa antes de conferir
+                document.stage = DocumentStage.VALIDATING
+                await db.commit()
                 # Validar se a soma dos itens bate com o total da fatura
                 if extraction_data.get("document_type") == "fatura_cartao":
                     total_amount = extraction_data.get("card_info", {}).get("total_amount")
@@ -322,6 +332,7 @@ async def retry_waiting_documents(limit: int = 5) -> int:
                 mark_failure(document, PROCESSING_TIMEOUT)
             else:
                 document.status = DocumentStatus.WAITING_AI
+                document.stage = DocumentStage.WAITING
                 document.next_retry_at = now
                 document.processing_started_at = None
             logger.warning(
@@ -508,6 +519,7 @@ class DocumentService:
             document.mime_type = prepared.mime_type
             document.file_size = content_size
             document.status = DocumentStatus.PROCESSING
+            document.stage = DocumentStage.RECEIVED
             await self.db.flush()
         else:
             # Criar registro com status PROCESSING
@@ -607,6 +619,7 @@ class DocumentService:
             document.mime_type = prepared.mime_type
             document.file_size = len(content)
             document.status = DocumentStatus.PENDING
+            document.stage = DocumentStage.RECEIVED
         else:
             document = Document(
                 user_id=user.id,
@@ -827,6 +840,7 @@ class DocumentService:
             document = existing_document
             document.file_path = str(file_path)
             document.status = DocumentStatus.PENDING
+            document.stage = DocumentStage.RECEIVED
         else:
             document = Document(
                 user_id=user.id,
@@ -1094,6 +1108,7 @@ class DocumentService:
         content = await asyncio.to_thread(_read_file_sync, document.file_path)
 
         document.status = DocumentStatus.PENDING
+        document.stage = DocumentStage.RECEIVED
         await self._process_document(document, content)
         return document
 

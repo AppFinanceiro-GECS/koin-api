@@ -18,6 +18,17 @@ class DocumentStatus(str, Enum):
     WAITING_AI = "waiting_ai"
 
 
+class DocumentStage(str, Enum):
+    """Etapa da leitura para o app mostrar o progresso (#37)"""
+
+    RECEIVED = "received"  # arquivo guardado
+    EXTRACTING = "extracting"  # IA lendo a fatura
+    VALIDATING = "validating"  # conferindo soma e total
+    DONE = "done"
+    WAITING = "waiting"  # na fila da IA (RN016)
+    FAILED = "failed"
+
+
 class DocumentType(str, Enum):
     RECEIPT = "receipt"
     INVOICE = "invoice"
@@ -50,6 +61,9 @@ class Document(Base):
     attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # Início do processamento atual: processing antigo = processo reiniciado no meio
     processing_started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    stage: Mapped[str] = mapped_column(
+        String(20), default=DocumentStage.RECEIVED, server_default="received"
+    )
     # Retenção (#50): original e extracted_data apagados; a linha fica para o hash e o vínculo
     file_purged_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)

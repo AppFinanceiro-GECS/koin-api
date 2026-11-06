@@ -155,6 +155,8 @@ class DocumentResponse(BaseModel):
     # RN016: o app decide pelo código; next_retry_at diz quando a leitura volta a tentar
     error_code: str | None = None
     next_retry_at: datetime | None = None
+    # #37: received → extracting → validating → done (ou waiting / failed)
+    stage: str | None = None
     created_at: datetime
     processed_at: datetime | None
 
@@ -180,3 +182,4 @@ class DocumentAsyncUploadResponse(BaseModel):
     id: int
     status: DocumentStatus
     message: str
+    stage: str = "received"
