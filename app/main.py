@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
@@ -14,25 +13,16 @@ from .core.config import settings
 from .core.database import engine
 from .core.errors import register_error_handlers
 from .core.modules import enabled_modules
+from .core.observability import configure_logging, configure_sentry
 from .core.rate_limit import limiter
-from .core.request_context import RequestContextMiddleware, RequestIdLogFilter
+from .core.request_context import RequestContextMiddleware
 from .core.version import API_VERSION, COMMIT
 from .modules.documents.services.ai_failures import ai_circuit
 from .routers import api_router
 
-# Configuracao do novo log estruturado
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-
-logging.basicConfig(
-    level=LOG_LEVEL,
-    format=(
-        'time="%(asctime)s" level=%(levelname)s module=%(module)s '
-        'request_id=%(request_id)s msg="%(message)s"'
-    ),
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-for _handler in logging.getLogger().handlers:
-    _handler.addFilter(RequestIdLogFilter())
+# Logs com request_id (JSON fora de development) e Sentry opcional (#27)
+configure_logging()
+configure_sentry()
 
 logger = logging.getLogger(__name__)
 

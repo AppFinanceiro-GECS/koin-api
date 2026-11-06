@@ -40,6 +40,9 @@ pyzbar>=0.1.9
 # HTTP Client
 httpx>=0.28.1,<1.0.0
 
+# Erros (#27): só ativa com SENTRY_DSN
+sentry-sdk==2.74.0
+
 # Testing
 pytest==9.1.1
 pytest-asyncio==1.4.0

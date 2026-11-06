@@ -9,6 +9,7 @@ import re
 import uuid
 from contextvars import ContextVar
 
+import sentry_sdk
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -34,6 +35,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         rid = incoming if _VALID_REQUEST_ID.fullmatch(incoming) else uuid.uuid4().hex
         request.state.request_id = rid
         request_id_var.set(rid)
+        # no-op sem SENTRY_DSN; com ele, o erro no Sentry acha a linha do log
+        sentry_sdk.set_tag("request_id", rid)
 
         response = await call_next(request)
         response.headers["X-Request-ID"] = rid
