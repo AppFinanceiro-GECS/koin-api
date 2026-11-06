@@ -97,6 +97,9 @@ class Settings(BaseSettings):
     smtp_from_name: str = "Koin"
     smtp_from_email: str | None = None
 
+    # Sentry (#27): vazio desliga
+    sentry_dsn: str | None = None
+
     # Push pelo Expo (#43): opcional, só se o projeto EAS exigir token de acesso
     expo_access_token: str | None = None
 
