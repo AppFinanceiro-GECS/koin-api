@@ -1228,9 +1228,14 @@ class DocumentService:
             # Usar LLM com visao para imagens/PDFs
             # Respeitar vision_provider configurado (default: google)
             selected_provider = settings.vision_provider
-            if selected_provider == "mistral" and settings.mistral_api_key:
+            if selected_provider == "deepseek" and settings.deepseek_api_key:
+                selected_model = settings.vision_model
+            elif selected_provider == "mistral" and settings.mistral_api_key:
                 selected_model = settings.mistral_llm_model
             elif selected_provider == "google" and settings.google_api_key:
+                selected_model = settings.vision_model
+            elif settings.deepseek_api_key:
+                selected_provider = "deepseek"
                 selected_model = settings.vision_model
             elif settings.google_api_key:
                 selected_provider = "google"
@@ -1239,7 +1244,7 @@ class DocumentService:
                 selected_provider = "mistral"
                 selected_model = settings.mistral_llm_model
             else:
-                selected_provider = "google"
+                selected_provider = settings.vision_provider
                 selected_model = settings.vision_model
             logger.info("[DOC_SVC] Using %s for extraction", selected_provider)
 

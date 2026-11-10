@@ -194,6 +194,37 @@ Exemplos: "cartoes,fluxo" ou "geral" ou "mercado" ou "cartoes,geral"."""
 
     async def _call_classification_llm(self, prompt: str) -> str:
         """Chama LLM pequeno para classificação (baixo custo, rápido)"""
+        if (
+            self.provider == "deepseek"
+            or (settings.deepseek_api_key and not settings.google_api_key)
+        ):
+            if not settings.deepseek_api_key:
+                raise ValueError("DeepSeek API key not configured")
+            base_url = (settings.deepseek_base_url or "https://api.deepseek.com").rstrip("/")
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await tracked_call(
+                    "deepseek",
+                    settings.classifier_model,
+                    lambda: client.post(
+                        f"{base_url}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {settings.deepseek_api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": settings.classifier_model,
+                            "messages": [{"role": "user", "content": prompt}],
+                            "temperature": 0,
+                            "max_tokens": 50,
+                        },
+                    ),
+                    feature="chat_classification",
+                )
+                if response.status_code != 200:
+                    raise ValueError(f"DeepSeek API error: {response.status_code}")
+                result = response.json()
+                return result["choices"][0]["message"]["content"]
+
         # Modelo leve de classificação (settings.classifier_model): rápido e barato
         api_key = settings.google_api_key
         if not api_key:
@@ -3824,18 +3855,57 @@ PONTOS IMPORTANTES:
 - Nao repita dados que o usuario ja viu na mesma conversa"""
 
     async def _call_llm(self, system_prompt: str, messages: list[dict]) -> str:
-        """Chama o LLM configurado (Google ou Mistral)"""
+        """Chama o LLM configurado (DeepSeek, Google ou Mistral)"""
         try:
-            if self.provider == "google":
+            if self.provider == "deepseek":
+                return await self._call_deepseek(system_prompt, messages)
+            elif self.provider == "google":
                 return await self._call_google(system_prompt, messages)
             elif self.provider == "mistral":
                 return await self._call_mistral(system_prompt, messages)
             else:
-                return "Desculpe, nenhum provider de IA esta configurado. Configure GOOGLE_API_KEY ou MISTRAL_API_KEY e defina CHAT_PROVIDER ou VISION_PROVIDER."
+                return "Desculpe, nenhum provider de IA esta configurado. Configure DEEPSEEK_API_KEY, GOOGLE_API_KEY ou MISTRAL_API_KEY e defina CHAT_PROVIDER ou VISION_PROVIDER."
         except AIUnavailable:
             raise
         except Exception as e:
             return f"Desculpe, ocorreu um erro ao processar sua mensagem: {str(e)}"
+
+    async def _call_deepseek(self, system_prompt: str, messages: list[dict]) -> str:
+        """Chama DeepSeek API"""
+        api_key = settings.deepseek_api_key
+        if not api_key:
+            return "Configure DEEPSEEK_API_KEY no arquivo .env para usar o assistente."
+
+        chat_messages = [{"role": "system", "content": system_prompt}]
+        for msg in messages:
+            role = "user" if msg["role"] == "user" else "assistant"
+            chat_messages.append({"role": role, "content": msg["content"]})
+
+        model = settings.chat_model or settings.vision_model
+        base_url = (settings.deepseek_base_url or "https://api.deepseek.com").rstrip("/")
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await tracked_call(
+                "deepseek",
+                model,
+                lambda: client.post(
+                    f"{base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "messages": chat_messages,
+                        "temperature": 0.4,
+                        "max_tokens": 2500,
+                    },
+                ),
+            )
+            if response.status_code != 200:
+                raise ValueError(f"DeepSeek API error: {response.status_code}")
+            result = response.json()
+            return result["choices"][0]["message"]["content"]
 
     async def _call_google(self, system_prompt: str, messages: list[dict]) -> str:
         """Chama Google Gemini API"""

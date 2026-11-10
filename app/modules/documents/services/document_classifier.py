@@ -345,48 +345,83 @@ class DocumentClassifier:
     async def _classify_by_llm(self, text_sample: str) -> DocumentType:
         """Classificacao usando LLM leve (fallback para casos ambiguos)
 
-        Usa Google Gemini Flash Lite (mais barato):
+        Usa DeepSeek ou Google Gemini Flash Lite (mais barato):
         - Custo: ~$0.00001 por requisicao
         - Tempo: 0.5-1s
         - Precisao: 98%+
         """
         try:
-            # Importar apenas quando necessario (otimizacao)
-            from google import genai
-
             from app.core.config import settings
-
-            if not settings.google_api_key:
-                logger.info("[Classifier] GOOGLE_API_KEY nao configurada, pulando LLM")
-                return DocumentType.UNKNOWN
-
-            client = genai.Client(api_key=settings.google_api_key)
 
             prompt = CLASSIFICATION_PROMPT.format(ocr_text=text_sample)
 
-            config = {
-                "temperature": 0.0,
-                "max_output_tokens": 20,  # Apenas 1 palavra
-            }
-            if settings.ai_thinking_level:
-                # raciocínio consome o teto de 20 tokens antes da resposta
-                config["thinking_config"] = {"thinking_level": settings.ai_thinking_level}
+            if (
+                settings.vision_provider == "deepseek"
+                or (settings.deepseek_api_key and not settings.google_api_key)
+            ):
+                if not settings.deepseek_api_key:
+                    logger.info("[Classifier] DEEPSEEK_API_KEY nao configurada, pulando LLM")
+                    return DocumentType.UNKNOWN
 
-            # Executar em thread separada (non-blocking)
-            def _call_gemini():
-                return client.models.generate_content(
-                    model=settings.classifier_model,
-                    contents=prompt,
-                    config=config,
+                import httpx
+
+                base_url = (settings.deepseek_base_url or "https://api.deepseek.com").rstrip("/")
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    response = await tracked_call(
+                        "deepseek",
+                        settings.classifier_model,
+                        lambda: client.post(
+                            f"{base_url}/chat/completions",
+                            headers={
+                                "Authorization": f"Bearer {settings.deepseek_api_key}",
+                                "Content-Type": "application/json",
+                            },
+                            json={
+                                "model": settings.classifier_model,
+                                "messages": [{"role": "user", "content": prompt}],
+                                "max_tokens": 20,
+                                "temperature": 0.0,
+                            },
+                        ),
+                        feature="classification",
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        result = data["choices"][0]["message"]["content"].strip().lower()
+                    else:
+                        result = ""
+            else:
+                if not settings.google_api_key:
+                    logger.info("[Classifier] GOOGLE_API_KEY nao configurada, pulando LLM")
+                    return DocumentType.UNKNOWN
+
+                from google import genai
+
+                client = genai.Client(api_key=settings.google_api_key)
+
+                config = {
+                    "temperature": 0.0,
+                    "max_output_tokens": 20,  # Apenas 1 palavra
+                }
+                if settings.ai_thinking_level:
+                    # raciocínio consome o teto de 20 tokens antes da resposta
+                    config["thinking_config"] = {"thinking_level": settings.ai_thinking_level}
+
+                # Executar em thread separada (non-blocking)
+                def _call_gemini():
+                    return client.models.generate_content(
+                        model=settings.classifier_model,
+                        contents=prompt,
+                        config=config,
+                    )
+
+                response = await tracked_call(
+                    "google",
+                    settings.classifier_model,
+                    lambda: asyncio.to_thread(_call_gemini),
+                    feature="classification",
                 )
-
-            response = await tracked_call(
-                "google",
-                settings.classifier_model,
-                lambda: asyncio.to_thread(_call_gemini),
-                feature="classification",
-            )
-            result = response.text.strip().lower()
+                result = response.text.strip().lower()
 
             # Parsear resposta
             if "cupom" in result or "nfc" in result:
@@ -399,7 +434,7 @@ class DocumentClassifier:
             return DocumentType.UNKNOWN
 
         except ImportError:
-            logger.info("[Classifier] google-genai nao instalado, pulando LLM")
+            logger.info("[Classifier] Biblioteca do provedor nao instalada, pulando LLM")
             return DocumentType.UNKNOWN
         except AIUnavailable:
             raise

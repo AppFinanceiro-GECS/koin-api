@@ -55,9 +55,12 @@ class Settings(BaseSettings):
     document_retention_days: int = 30
 
     # LLM/Vision API (para OCR inteligente e Chat)
-    # Providers suportados: google (gratuito), mistral (melhor custo-benefício)
-    vision_provider: str = "google"  # google é gratuito!
+    # Providers suportados: google (gratuito), mistral (melhor custo-benefício), deepseek
+    vision_provider: str = "google"  # google, mistral ou deepseek
     google_api_key: str | None = None  # Gemini - GRÁTIS
+    # DeepSeek API (deepseek-flash com suporte a visão)
+    deepseek_api_key: str | None = None
+    deepseek_base_url: str = "https://api.deepseek.com"
     # Modelos em https://ai.google.dev/gemini-api/docs/models (a família 2.0 foi desligada em 01/06/2026).
     # Trocar de modelo é só mudar a variável de ambiente; nenhum outro lugar do código fixa o nome.
     vision_model: str = "gemini-3.5-flash-lite"  # extração de faturas e cupons (imagem/PDF)
