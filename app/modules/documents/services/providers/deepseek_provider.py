@@ -27,7 +27,7 @@ class DeepSeekProvider(BaseProvider):
         prompt: str = "",
         parse_response_fn=None,
     ):
-        super().__init__(model or settings.vision_model or "deepseek-flash")
+        super().__init__(model or "deepseek-flash")
         self.max_retries = DEFAULT_MAX_RETRIES
         self.retry_delay = DEFAULT_RETRY_DELAY
         self.base_prompt = prompt
