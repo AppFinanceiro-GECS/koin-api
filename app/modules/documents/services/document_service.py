@@ -232,10 +232,26 @@ async def process_document_background(
 
             from app.modules.documents.services.llm_ocr_service import LLMOCRService
 
-            if settings.mistral_api_key:
-                llm_service = LLMOCRService(provider="mistral", model=settings.mistral_llm_model)
-            else:
-                llm_service = LLMOCRService(provider="google", model=settings.vision_model)
+            selected_provider = settings.vision_provider
+            selected_model = settings.vision_model
+            if selected_provider == "deepseek" and settings.deepseek_api_key:
+                selected_model = settings.vision_model
+            elif selected_provider == "mistral" and settings.mistral_api_key:
+                selected_model = settings.mistral_llm_model
+            elif selected_provider == "google" and settings.google_api_key:
+                selected_model = settings.vision_model
+            elif settings.deepseek_api_key:
+                selected_provider = "deepseek"
+                selected_model = settings.vision_model
+            elif settings.mistral_api_key:
+                selected_provider = "mistral"
+                selected_model = settings.mistral_llm_model
+            elif settings.google_api_key:
+                selected_provider = "google"
+                selected_model = settings.vision_model
+
+            logger.info("[DOC_BG] Using provider=%s model=%s for extraction", selected_provider, selected_model)
+            llm_service = LLMOCRService(provider=selected_provider, model=selected_model)
 
             with usage_context(db, user_id, document_id):
                 extraction_data = await asyncio.wait_for(
@@ -1010,14 +1026,26 @@ class DocumentService:
             # Mistral como provider principal (melhor OCR)
             from app.modules.documents.services.llm_ocr_service import LLMOCRService
 
-            if settings.mistral_api_key:
-                llm_service = LLMOCRService(provider="mistral", model=settings.mistral_llm_model)
-                logger.info("[DOC_SVC] Using Mistral for batch image extraction")
-            else:
-                llm_service = LLMOCRService(provider="google", model=settings.vision_model)
-                logger.info(
-                    "[DOC_SVC] Using Google for batch image extraction (Mistral not configured)"
-                )
+            selected_provider = settings.vision_provider
+            selected_model = settings.vision_model
+            if selected_provider == "deepseek" and settings.deepseek_api_key:
+                selected_model = settings.vision_model
+            elif selected_provider == "mistral" and settings.mistral_api_key:
+                selected_model = settings.mistral_llm_model
+            elif selected_provider == "google" and settings.google_api_key:
+                selected_model = settings.vision_model
+            elif settings.deepseek_api_key:
+                selected_provider = "deepseek"
+                selected_model = settings.vision_model
+            elif settings.mistral_api_key:
+                selected_provider = "mistral"
+                selected_model = settings.mistral_llm_model
+            elif settings.google_api_key:
+                selected_provider = "google"
+                selected_model = settings.vision_model
+
+            logger.info("[DOC_SVC] Using %s (%s) for batch image extraction", selected_provider, selected_model)
+            llm_service = LLMOCRService(provider=selected_provider, model=selected_model)
             result = await llm_service.extract_from_multiple_images(images)
 
             items_count = len(result.get("items", [])) if result else 0
