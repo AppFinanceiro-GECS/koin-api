@@ -152,10 +152,12 @@ class DeepSeekProvider(BaseProvider):
         content_parts = [{"type": "text", "text": self.prompt}]
         for img_bytes, img_mime in images:
             b64 = base64.b64encode(img_bytes).decode("utf-8")
-            content_parts.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:{img_mime};base64,{b64}"},
-            })
+            content_parts.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{img_mime};base64,{b64}"},
+                }
+            )
         messages = [{"role": "user", "content": content_parts}]
         return await self._call_api(messages)
 
@@ -183,11 +185,15 @@ class DeepSeekProvider(BaseProvider):
         except AIUnavailable:
             raise
         except Exception as e:
-            logger.info("[DeepSeekProvider] Erro ao extrair texto do PDF: %s, fallback para imagem", e)
+            logger.info(
+                "[DeepSeekProvider] Erro ao extrair texto do PDF: %s, fallback para imagem", e
+            )
             return None
 
         if not ocr_text or len(ocr_text.strip()) < 50:
-            logger.info("[DeepSeekProvider] PDF sem texto legivel (< 50 chars), fallback para imagens")
+            logger.info(
+                "[DeepSeekProvider] PDF sem texto legivel (< 50 chars), fallback para imagens"
+            )
             return None
 
         bank_name = self._detect_bank(ocr_text)

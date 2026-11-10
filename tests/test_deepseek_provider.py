@@ -1,13 +1,12 @@
 """Testes para o DeepSeekProvider e integracao com vision (deepseek-flash)"""
 
-import asyncio
 import json
-import pytest
-import httpx
 
-from app.core.config import Settings
-from app.modules.documents.services.providers.deepseek_provider import DeepSeekProvider
+import httpx
+import pytest
+
 from app.modules.documents.services.llm_ocr_service import LLMOCRService
+from app.modules.documents.services.providers.deepseek_provider import DeepSeekProvider
 
 
 def test_deepseek_provider_init():
@@ -27,10 +26,12 @@ async def test_deepseek_extract_from_image_payload(monkeypatch):
             "choices": [
                 {
                     "message": {
-                        "content": json_dumps({
-                            "document_type": "fatura_cartao",
-                            "items": [{"description": "Uber", "amount": 25.50}],
-                        })
+                        "content": json_dumps(
+                            {
+                                "document_type": "fatura_cartao",
+                                "items": [{"description": "Uber", "amount": 25.50}],
+                            }
+                        )
                     }
                 }
             ],
@@ -106,11 +107,7 @@ async def test_deepseek_extract_multi_page(monkeypatch):
             200,
             json={
                 "choices": [
-                    {
-                        "message": {
-                            "content": json.dumps({"items": [{"description": "Item 1"}]})
-                        }
-                    }
+                    {"message": {"content": json.dumps({"items": [{"description": "Item 1"}]})}}
                 ],
                 "usage": {"prompt_tokens": 150, "completion_tokens": 30},
             },

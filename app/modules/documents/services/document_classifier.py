@@ -355,9 +355,8 @@ class DocumentClassifier:
 
             prompt = CLASSIFICATION_PROMPT.format(ocr_text=text_sample)
 
-            if (
-                settings.vision_provider == "deepseek"
-                or (settings.deepseek_api_key and not settings.google_api_key)
+            if settings.vision_provider == "deepseek" or (
+                settings.deepseek_api_key and not settings.google_api_key
             ):
                 if not settings.deepseek_api_key:
                     logger.info("[Classifier] DEEPSEEK_API_KEY nao configurada, pulando LLM")

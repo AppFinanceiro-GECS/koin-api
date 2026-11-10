@@ -194,9 +194,8 @@ Exemplos: "cartoes,fluxo" ou "geral" ou "mercado" ou "cartoes,geral"."""
 
     async def _call_classification_llm(self, prompt: str) -> str:
         """Chama LLM pequeno para classificação (baixo custo, rápido)"""
-        if (
-            self.provider == "deepseek"
-            or (settings.deepseek_api_key and not settings.google_api_key)
+        if self.provider == "deepseek" or (
+            settings.deepseek_api_key and not settings.google_api_key
         ):
             if not settings.deepseek_api_key:
                 raise ValueError("DeepSeek API key not configured")

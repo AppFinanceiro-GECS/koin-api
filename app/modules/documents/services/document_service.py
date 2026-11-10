@@ -250,7 +250,11 @@ async def process_document_background(
                 selected_provider = "google"
                 selected_model = settings.vision_model
 
-            logger.info("[DOC_BG] Using provider=%s model=%s for extraction", selected_provider, selected_model)
+            logger.info(
+                "[DOC_BG] Using provider=%s model=%s for extraction",
+                selected_provider,
+                selected_model,
+            )
             llm_service = LLMOCRService(provider=selected_provider, model=selected_model)
 
             with usage_context(db, user_id, document_id):
@@ -1044,7 +1048,11 @@ class DocumentService:
                 selected_provider = "google"
                 selected_model = settings.vision_model
 
-            logger.info("[DOC_SVC] Using %s (%s) for batch image extraction", selected_provider, selected_model)
+            logger.info(
+                "[DOC_SVC] Using %s (%s) for batch image extraction",
+                selected_provider,
+                selected_model,
+            )
             llm_service = LLMOCRService(provider=selected_provider, model=selected_model)
             result = await llm_service.extract_from_multiple_images(images)
 
