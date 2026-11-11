@@ -18,7 +18,13 @@ from .document_classifier import DocumentClassifier
 from .extraction_validator import ExtractionValidator
 from .pdf_converter import convert_pdf_to_images
 from .prompts import EXTRACTION_PROMPT
-from .providers import AnthropicProvider, GoogleProvider, MistralProvider, OpenAIProvider
+from .providers import (
+    AnthropicProvider,
+    DeepSeekProvider,
+    GoogleProvider,
+    MistralProvider,
+    OpenAIProvider,
+)
 from .response_parser import ResponseParser
 from .schemas import FaturaExtracao
 
@@ -79,6 +85,10 @@ class LLMOCRService:
                     prompt=default_prompt,
                     response_schema=FaturaExtracao,
                     parse_response_fn=parse_fn,
+                )
+            elif self.provider_name == "deepseek":
+                self._provider = DeepSeekProvider(
+                    model=self.model, prompt=default_prompt, parse_response_fn=parse_fn
                 )
             elif self.provider_name == "mistral":
                 self._provider = MistralProvider(
@@ -242,6 +252,12 @@ class LLMOCRService:
                 response_schema=FaturaExtracao,
                 parse_response_fn=parse_fn,
             )
+        elif provider_name == "deepseek":
+            return DeepSeekProvider(
+                model=settings.vision_model,
+                prompt=default_prompt,
+                parse_response_fn=parse_fn,
+            )
         elif provider_name == "mistral":
             return MistralProvider(
                 model=None,
@@ -255,27 +271,61 @@ class LLMOCRService:
         """Returns a fallback provider for retry, or None if unavailable.
 
         Strategy:
-        - google -> try mistral (if api key exists)
-        - mistral -> try google (if api key exists)
+        - deepseek -> try google or mistral
+        - google -> try deepseek or mistral
+        - mistral -> try deepseek or google
         - otherwise -> None
         """
         parse_fn = self.parser.parse
+        current_prompt = self._provider.prompt if self._provider else EXTRACTION_PROMPT
 
-        if self.provider_name == "google" and settings.mistral_api_key:
-            logger.info("[LLM_OCR] Fallback provider: mistral")
-            return MistralProvider(
-                model=None,
-                prompt=self._provider.prompt if self._provider else EXTRACTION_PROMPT,
-                parse_response_fn=parse_fn,
-            )
-        elif self.provider_name == "mistral" and settings.google_api_key:
-            logger.info("[LLM_OCR] Fallback provider: google")
-            return GoogleProvider(
-                model=settings.vision_model,
-                prompt=self._provider.prompt if self._provider else EXTRACTION_PROMPT,
-                response_schema=FaturaExtracao,
-                parse_response_fn=parse_fn,
-            )
+        if self.provider_name == "deepseek":
+            if settings.google_api_key:
+                logger.info("[LLM_OCR] Fallback provider: google")
+                return GoogleProvider(
+                    model=settings.vision_model,
+                    prompt=current_prompt,
+                    response_schema=FaturaExtracao,
+                    parse_response_fn=parse_fn,
+                )
+            elif settings.mistral_api_key:
+                logger.info("[LLM_OCR] Fallback provider: mistral")
+                return MistralProvider(
+                    model=None,
+                    prompt=current_prompt,
+                    parse_response_fn=parse_fn,
+                )
+        elif self.provider_name == "google":
+            if settings.deepseek_api_key:
+                logger.info("[LLM_OCR] Fallback provider: deepseek")
+                return DeepSeekProvider(
+                    model=settings.vision_model,
+                    prompt=current_prompt,
+                    parse_response_fn=parse_fn,
+                )
+            elif settings.mistral_api_key:
+                logger.info("[LLM_OCR] Fallback provider: mistral")
+                return MistralProvider(
+                    model=None,
+                    prompt=current_prompt,
+                    parse_response_fn=parse_fn,
+                )
+        elif self.provider_name == "mistral":
+            if settings.deepseek_api_key:
+                logger.info("[LLM_OCR] Fallback provider: deepseek")
+                return DeepSeekProvider(
+                    model=settings.vision_model,
+                    prompt=current_prompt,
+                    parse_response_fn=parse_fn,
+                )
+            elif settings.google_api_key:
+                logger.info("[LLM_OCR] Fallback provider: google")
+                return GoogleProvider(
+                    model=settings.vision_model,
+                    prompt=current_prompt,
+                    response_schema=FaturaExtracao,
+                    parse_response_fn=parse_fn,
+                )
 
         logger.info("[LLM_OCR] No fallback provider available")
         return None
@@ -315,7 +365,7 @@ class LLMOCRService:
 
         # Se temos multiplas paginas, enviar todas juntas para dar contexto completo ao LLM
         # Isso evita processar página por página e perder contexto
-        if len(images) > 1 and self.provider_name in ("google", "mistral"):
+        if len(images) > 1 and self.provider_name in ("google", "mistral", "deepseek"):
             logger.info("[LLM_OCR] Processing %s pages together for full context", len(images))
             return await provider.extract_multi_page(images)
 

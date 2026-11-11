@@ -53,9 +53,9 @@ def _check_models_sync() -> dict[str, bool]:
 
 
 async def check_ai_models() -> dict[str, bool] | None:
-    """Valida os modelos; None quando não há chave do Google para validar."""
-    if not settings.google_api_key:
-        logger.warning("ai_model_check_skipped reason=GOOGLE_API_KEY vazia")
+    """Valida os modelos; None quando não há chave do Google para validar ou quando o provedor não é Google."""
+    if settings.vision_provider != "google" or not settings.google_api_key:
+        logger.info("ai_model_check_skipped reason=provider_not_google_or_no_key")
         return None
     try:
         return await asyncio.wait_for(
