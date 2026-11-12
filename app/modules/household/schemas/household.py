@@ -66,6 +66,12 @@ class FamilyContext(BaseModel):
 # ========== Family Invite Schemas ==========
 
 
+class FamilyCreateRequest(BaseModel):
+    """Request opcional para iniciar um grupo familiar"""
+
+    nickname: str | None = None
+
+
 class FamilyInviteRequest(BaseModel):
     """Request para convidar membro da familia"""
 
@@ -80,6 +86,8 @@ class FamilyInviteResponse(BaseModel):
     email: str
     status: str
     expires_at: datetime
+    invite_url: str | None = None
+    token: str | None = None
 
 
 # ========== Pending Invitations ==========
