@@ -63,7 +63,7 @@ from .grocery import (
     ShoppingListSource,
     ShoppingListStatus,
 )
-from .household import HouseholdMember, HouseholdRole, OwnershipType
+from .household import HouseholdMember, HouseholdRole, HouseholdSettlement, OwnershipType
 from .income_source import IncomeFrequency, IncomeSource, IncomeType
 from .income_split_rule import IncomeSplitRule, SplitType
 from .installment import InstallmentSeries, InstallmentSeriesStatus
@@ -103,6 +103,7 @@ __all__ = [
     "RefreshToken",
     "Account",
     "HouseholdMember",
+    "HouseholdSettlement",
     "HouseholdRole",
     "OwnershipType",
     "Category",
