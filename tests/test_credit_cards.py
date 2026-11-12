@@ -121,6 +121,33 @@ async def test_excluir_cartao_com_force_apaga_dados_vinculados(auth, db_session,
     )
 
 
+async def test_compra_no_cartao_lancada_em_outra_conta_conta_e_sai_junto(
+    auth, db_session, test_user, bank_account
+):
+    """O app lança compras com account_id da carteira e credit_card_id do cartão"""
+    card = await _create_card(auth)
+    db_session.add(
+        Transaction(
+            user_id=test_user.id,
+            account_id=bank_account.id,
+            credit_card_id=card["id"],
+            type="expense",
+            amount=Decimal("30"),
+            date=date(2026, 11, 3),
+            description="Mercado",
+        )
+    )
+    await db_session.commit()
+
+    response = await auth.delete(f"{BASE}/{card['id']}")
+    assert response.status_code == 409
+    assert response.json()["detail"]["transactions"] == 1
+
+    response = await auth.delete(f"{BASE}/{card['id']}", params={"force": "true"})
+    assert response.status_code == 204
+    assert await _count(db_session, Transaction, Transaction.account_id == bank_account.id) == 0
+
+
 async def test_force_solta_recorrencia_que_aponta_para_lancamento_do_cartao(
     auth, db_session, test_user, bank_account
 ):

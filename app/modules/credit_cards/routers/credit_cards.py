@@ -305,21 +305,28 @@ async def update_credit_card(
     return _to_response(card, account)
 
 
+def _card_transactions(card: CreditCard):
+    """Lançamentos do cartão: os da conta do cartão e as compras marcadas com ele em outra conta"""
+    return or_(Transaction.account_id == card.account_id, Transaction.credit_card_id == card.id)
+
+
+def _card_installments(card: CreditCard):
+    return or_(
+        InstallmentSeries.account_id == card.account_id,
+        InstallmentSeries.credit_card_id == card.id,
+    )
+
+
 async def _linked_data(db, card: CreditCard) -> dict[str, int]:
-    """O que some junto com o cartão: lançamentos da conta do cartão, faturas e parcelamentos"""
+    """O que some junto com o cartão: lançamentos, faturas e parcelamentos"""
     transactions = await db.scalar(
-        select(func.count(Transaction.id)).where(Transaction.account_id == card.account_id)
+        select(func.count(Transaction.id)).where(_card_transactions(card))
     )
     invoices = await db.scalar(
         select(func.count(CreditCardInvoice.id)).where(CreditCardInvoice.credit_card_id == card.id)
     )
     installments = await db.scalar(
-        select(func.count(InstallmentSeries.id)).where(
-            or_(
-                InstallmentSeries.account_id == card.account_id,
-                InstallmentSeries.credit_card_id == card.id,
-            )
-        )
+        select(func.count(InstallmentSeries.id)).where(_card_installments(card))
     )
     return {
         "transactions": transactions or 0,
@@ -377,28 +384,15 @@ async def delete_credit_card(
         )
 
     # Remoção explícita, sem depender só do ON DELETE do banco:
-    # recurrence_parent_id não tem ON DELETE e travaria o cascade dos lançamentos
-    card_tx_ids = select(Transaction.id).where(Transaction.account_id == account.id)
+    # recurrence_parent_id não tem ON DELETE e travaria a exclusão dos lançamentos
+    card_tx_ids = select(Transaction.id).where(_card_transactions(card))
     await db.execute(
         update(Transaction)
         .where(Transaction.recurrence_parent_id.in_(card_tx_ids))
         .values(recurrence_parent_id=None)
     )
-    await db.execute(
-        update(Transaction)
-        .where(Transaction.credit_card_id == card.id, Transaction.account_id != account.id)
-        .values(credit_card_id=None, invoice_id=None)
-    )
-    await db.execute(
-        update(InstallmentSeries)
-        .where(
-            InstallmentSeries.credit_card_id == card.id,
-            InstallmentSeries.account_id != account.id,
-        )
-        .values(credit_card_id=None)
-    )
-    await db.execute(delete(Transaction).where(Transaction.account_id == account.id))
-    await db.execute(delete(InstallmentSeries).where(InstallmentSeries.account_id == account.id))
+    await db.execute(delete(Transaction).where(_card_transactions(card)))
+    await db.execute(delete(InstallmentSeries).where(_card_installments(card)))
     await db.execute(
         delete(RecurringTransaction).where(RecurringTransaction.account_id == account.id)
     )
