@@ -5,6 +5,7 @@ Permite ao owner convidar membros e gerenciar a familia.
 
 import asyncio
 import logging
+import secrets
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
@@ -14,8 +15,10 @@ from app.core.deps import CurrentUser, DbSession
 from app.core.services.email_service import email_service
 from app.models import Invitation, InvitationStatus, License, User
 from app.models.household import HouseholdMember, HouseholdRole
+from app.models.license import LicenseStatus, LicenseType
 from app.modules.household.schemas.household import (
     FamilyContext,
+    FamilyCreateRequest,
     FamilyInvitationResponse,
     FamilyInviteRequest,
     FamilyInviteResponse,
@@ -48,10 +51,78 @@ def require_can_invite(user: User):
         )
 
 
+@router.post("", response_model=FamilyContext, status_code=status.HTTP_201_CREATED)
+async def create_family(
+    current_user: CurrentUser,
+    db: DbSession,
+    data: FamilyCreateRequest | None = None,
+):
+    """Inicializa um grupo familiar para o usuário atual, provisionando a licença e tornando-o owner."""
+    if current_user.household_membership:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Usuário já pertence a uma família",
+        )
+
+    license = None
+    if current_user.license_id:
+        license_result = await db.execute(
+            select(License).where(License.id == current_user.license_id)
+        )
+        license = license_result.scalar_one_or_none()
+
+    if not license:
+        key = secrets.token_urlsafe(32)
+        license = License(
+            key=key,
+            type=LicenseType.PREMIUM,
+            status=LicenseStatus.ACTIVE,
+            max_users=5,
+            has_ai_assistant=True,
+            has_insights=True,
+            has_debt_strategies=True,
+            has_goals=True,
+            has_budget=True,
+            owner_user_id=current_user.id,
+            owner_email=current_user.email,
+        )
+        db.add(license)
+        await db.flush()
+        current_user.license_id = license.id
+    else:
+        if license.max_users < 5:
+            license.max_users = 5
+        if not license.owner_user_id:
+            license.owner_user_id = current_user.id
+            license.owner_email = current_user.email
+
+    member = HouseholdMember(
+        license_id=license.id,
+        user_id=current_user.id,
+        role=HouseholdRole.OWNER.value,
+        nickname=data.nickname if data and data.nickname else None,
+        can_create_transactions=True,
+        can_edit_shared=True,
+        can_invite_members=True,
+        can_see_all=True,
+    )
+    db.add(member)
+    await db.commit()
+    await db.refresh(member)
+    await db.refresh(license)
+    await db.refresh(current_user)
+
+    return await get_family_context(current_user, db)
+
+
 @router.get("/context", response_model=FamilyContext)
 async def get_family_context(current_user: CurrentUser, db: DbSession):
     """Retorna contexto da familia do usuario logado"""
     require_license(current_user)
+    if not current_user.household_membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Usuário não pertence a nenhuma família"
+        )
 
     # Buscar licenca
     license_result = await db.execute(select(License).where(License.id == current_user.license_id))
@@ -237,6 +308,8 @@ async def invite_member(
         email=invitation.email,
         status=status_value,
         expires_at=invitation.expires_at,
+        invite_url=invite_url,
+        token=invitation.token,
     )
 
 
