@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy import and_, delete, func, or_, select, update
 
@@ -222,6 +222,68 @@ async def create_credit_card(
     await db.refresh(account)
 
     return _to_response(credit_card, account)
+
+
+@router.post("/from-document/{document_id}", response_model=CreditCardResponse)
+async def create_credit_card_from_document(
+    document_id: int,
+    current_user: CurrentUser,
+    db: DbSession,
+    response: Response,
+):
+    """
+    Cadastra o cartão descrito numa fatura já lida (banco, final, fechamento, vencimento
+    e limite). Se um cartão cadastrado já bate com a fatura, devolve ele (200) em vez de
+    duplicar; se criar, devolve 201. Só faturas criam cartão: outro documento dá 422.
+    """
+    from app.models.document import Document
+    from app.modules.credit_cards.routers.invoices import BANK_COLORS
+    from app.modules.credit_cards.services.card_matching import (
+        MATCHED,
+        is_invoice,
+        match_card,
+        suggestion_from_card_info,
+    )
+
+    document = await db.scalar(
+        select(Document).where(Document.id == document_id, Document.user_id == current_user.id)
+    )
+    if not document:
+        raise HTTPException(status_code=404, detail="Documento não encontrado")
+
+    card_info = (document.extracted_data or {}).get("card_info") or {}
+    if not is_invoice(document.document_type, card_info):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "not_an_invoice",
+                "message": "Só a fatura do cartão traz os dados para cadastrar o cartão. "
+                "Cadastre o cartão manualmente ou envie a fatura.",
+            },
+        )
+
+    match = await match_card(db, current_user, card_info, document.document_type)
+    if match.status == MATCHED and match.credit_card_id:
+        card, account = await _get_card_or_404(db, current_user, match.credit_card_id)
+        response.status_code = status.HTTP_200_OK
+        return _to_response(card, account)
+
+    suggestion = suggestion_from_card_info(card_info)
+    data = CreditCardCreate(
+        name=suggestion.name,
+        nickname=suggestion.name,
+        bank_id=suggestion.bank_id,
+        card_brand=suggestion.card_brand,
+        last_four_digits=suggestion.last_four_digits,
+        closing_day=suggestion.closing_day or 1,
+        due_day=suggestion.due_day or 10,
+        credit_limit=suggestion.credit_limit or 0,
+        color=BANK_COLORS.get(suggestion.bank_id or "", BANK_COLORS["default"]),
+        icon="credit-card",
+    )
+    created = await create_credit_card(data, current_user, db)
+    response.status_code = status.HTTP_201_CREATED
+    return created
 
 
 @router.get("/{card_id}", response_model=CreditCardResponse)

@@ -125,6 +125,35 @@ class CardInfoResponse(BaseModel):
     credit_available: float | None = None  # Limite disponivel
 
 
+class CardSuggestionResponse(BaseModel):
+    """Cartão que a fatura descreve, para cadastrar com um toque"""
+
+    name: str
+    last_four_digits: str | None = None
+    bank_id: str | None = None
+    card_brand: str | None = None
+    closing_day: int | None = None
+    due_day: int | None = None
+    credit_limit: float | None = None
+
+
+class CardMatchResponse(BaseModel):
+    """
+    De qual cartão é este documento.
+
+    matched: um cartão cadastrado bate (pelo final, ou pelo banco quando falta o final)
+    new: é fatura de um cartão que ainda não existe; `suggestion` traz os dados para cadastrar
+    ambiguous: mais de um cartão bate; `candidate_ids` lista quais
+    none: o documento não traz dados de cartão (cupom, comprovante de PIX etc.)
+    """
+
+    status: str
+    credit_card_id: int | None = None
+    credit_card_name: str | None = None
+    candidate_ids: list[int] = []
+    suggestion: CardSuggestionResponse | None = None
+
+
 class DetectedPaymentResponse(BaseModel):
     """Pagamento detectado no cupom fiscal"""
 
@@ -169,6 +198,9 @@ class DocumentResponse(BaseModel):
 
     # Informacoes do cartao (apenas para fatura_cartao)
     card_info: CardInfoResponse | None = None
+
+    # De qual cartão é o documento (reconhecido pelo final e pelo banco)
+    card_match: CardMatchResponse | None = None
 
     # Informacoes de pagamento (apenas para cupom_fiscal)
     payment_info: PaymentInfoResponse | None = None

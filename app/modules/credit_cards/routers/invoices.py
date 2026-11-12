@@ -31,6 +31,10 @@ from app.modules.credit_cards.services.expected_invoice_service import (
     ExpectedInvoiceService,
 )
 from app.modules.credit_cards.services.invoice_service import InvoiceService
+from app.modules.credit_cards.services.outlook_service import (
+    InvoiceOutlookResponse,
+    build_outlook,
+)
 
 router = APIRouter()
 
@@ -211,6 +215,20 @@ class InvoiceOverviewResponse(BaseModel):
     items: list[ExpectedInvoiceItem]
     total_cards: int
     pending_count: int  # quantos estao em estado not_created ou created_no_document
+
+
+@router.get("/outlook", response_model=InvoiceOutlookResponse)
+async def invoices_outlook(
+    current_user: CurrentUser,
+    db: DbSession,
+    months: int = Query(6, ge=1, le=24, description="Quantos meses, a partir do atual"),
+    scope: str = Query("me", pattern="^(me|family)$"),
+):
+    """
+    Parcelas já compradas que caem em cada fatura dos próximos meses.
+    scope=family soma também as compras compartilhadas da família.
+    """
+    return await build_outlook(db, current_user, months, scope, today_br())
 
 
 @router.get("/overview", response_model=InvoiceOverviewResponse)
@@ -811,7 +829,10 @@ async def detect_card_from_document(
     current_user: CurrentUser,
     db: DbSession,
 ):
-    """Detecta cartao de credito baseado nos dados extraidos do documento"""
+    """
+    Detecta cartao de credito baseado nos dados extraidos do documento.
+    Obsoleto: use card_match em GET /documents/{id}, que considera a familia.
+    """
     service = InvoiceService(db)
     cards = await service.detect_card_from_document(current_user, document_data)
 
@@ -911,6 +932,8 @@ async def create_card_from_invoice(
     Cria um novo cartao de credito a partir dos dados extraidos de uma fatura.
 
     Util quando o usuario envia uma fatura de um cartao que ainda nao esta cadastrado.
+    Obsoleto: use POST /credit-cards/from-document/{document_id}, que le os dados
+    do proprio documento e nao duplica cartao.
     O sistema extrai as informacoes do PDF e usa este endpoint para criar o cartao.
     """
     from app.models.credit_card import CreditCard
