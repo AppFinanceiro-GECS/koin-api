@@ -6,15 +6,15 @@
 fastapi==0.148.0
 starlette==1.9.0
 uvicorn[standard]==0.54.0
-python-multipart==0.0.32
+python-multipart==0.0.33
 python-dotenv==1.2.4
 
 # Database
-sqlalchemy==2.1.1
+sqlalchemy==2.1.8
 asyncpg==0.31.0
 aiosqlite==0.22.1
 greenlet>=3.0.0
-alembic==1.20.0
+alembic==1.20.1
 
 # Auth
 PyJWT==2.15.1
@@ -45,7 +45,7 @@ sentry-sdk==2.74.0
 
 # Testing
 pytest==9.1.1
-pytest-asyncio==1.4.0
+pytest-asyncio==1.4.1.post1
 freezegun==1.5.5
 pytest-cov==7.1.0
 
