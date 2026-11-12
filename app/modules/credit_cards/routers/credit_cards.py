@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select, update
 
 from app.core.deps import CurrentUser, DbSession
 from app.models.account import Account, AccountType
 from app.models.credit_card import CreditCard
 from app.models.credit_card_invoice import CreditCardInvoice, InvoiceStatus
 from app.models.household import HouseholdMember
+from app.models.installment import InstallmentSeries
+from app.models.recurring import RecurringTransaction
+from app.models.transaction import Transaction
 from app.modules.credit_cards.schemas.credit_card import (
     CreditCardCreate,
     CreditCardListResponse,
@@ -17,7 +20,11 @@ from app.modules.credit_cards.schemas.credit_card import (
     InvoicePasswordRequest,
 )
 from app.modules.credit_cards.services.invoice_service import InvoiceService
-from app.modules.household.utils.household_helpers import validate_create_permission
+from app.modules.household.utils.household_helpers import (
+    validate_create_permission,
+    validate_delete_permission,
+    validate_edit_permission,
+)
 
 router = APIRouter()
 
@@ -33,34 +40,78 @@ async def get_household_user_ids(db, user) -> list[int]:
     return list(result.scalars().all())
 
 
+async def _visible_cards_filter(db, user):
+    """Cartões que o usuário enxerga: os pessoais dele e os da família"""
+    household_user_ids = await get_household_user_ids(db, user)
+    if not household_user_ids:
+        return CreditCard.user_id == user.id
+    return or_(
+        and_(CreditCard.user_id == user.id, Account.ownership_type == "personal"),
+        and_(
+            CreditCard.user_id.in_(household_user_ids),
+            Account.ownership_type == "household",
+        ),
+    )
+
+
+async def _get_card_or_404(db, user, card_id: int) -> tuple[CreditCard, Account]:
+    """Busca com a mesma regra da listagem: o que aparece na lista também abre, edita e exclui"""
+    result = await db.execute(
+        select(CreditCard, Account)
+        .join(Account, CreditCard.account_id == Account.id)
+        .where(CreditCard.id == card_id, await _visible_cards_filter(db, user))
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Cartão não encontrado")
+    return row[0], row[1]
+
+
+def _to_response(card: CreditCard, account: Account) -> CreditCardResponse:
+    return CreditCardResponse(
+        id=card.id,
+        account_id=card.account_id,
+        user_id=card.user_id,
+        credit_limit=float(card.credit_limit),
+        closing_day=card.closing_day,
+        due_day=card.due_day,
+        has_points=card.has_points,
+        points_program=card.points_program,
+        points_program_name=card.points_program_name,
+        points_factor=float(card.points_factor) if card.points_factor is not None else 1.0,
+        points_factor_international=float(card.points_factor_international)
+        if card.points_factor_international
+        else None,
+        nickname=card.nickname,
+        bank_id=card.bank_id,
+        card_brand=card.card_brand,
+        card_variant=card.card_variant,
+        last_four_digits=card.last_four_digits,
+        annual_fee=float(card.annual_fee) if card.annual_fee else None,
+        annual_fee_frequency=card.annual_fee_frequency or "monthly",
+        annual_fee_waived=card.annual_fee_waived,
+        benefits_notes=card.benefits_notes,
+        is_active=card.is_active,
+        created_at=card.created_at,
+        updated_at=card.updated_at,
+        has_invoice_password=bool(card.invoice_password_encrypted),
+        account_name=account.name,
+        account_balance=float(account.balance),
+        account_color=account.color,
+        account_icon=account.icon,
+        ownership_type=account.ownership_type,
+    )
+
+
 @router.get("", response_model=list[CreditCardListResponse])
 async def list_credit_cards(current_user: CurrentUser, db: DbSession):
     """Lista todos os cartoes de credito do usuario"""
-    household_user_ids = await get_household_user_ids(db, current_user)
-
-    if household_user_ids:
-        result = await db.execute(
-            select(CreditCard, Account)
-            .join(Account, CreditCard.account_id == Account.id)
-            .where(
-                or_(
-                    and_(
-                        CreditCard.user_id == current_user.id, Account.ownership_type == "personal"
-                    ),
-                    and_(
-                        CreditCard.user_id.in_(household_user_ids),
-                        Account.ownership_type == "household",
-                    ),
-                )
-            )
-        )
-    else:
-        result = await db.execute(
-            select(CreditCard, Account)
-            .join(Account, CreditCard.account_id == Account.id)
-            .where(CreditCard.user_id == current_user.id)
-        )
-
+    result = await db.execute(
+        select(CreditCard, Account)
+        .join(Account, CreditCard.account_id == Account.id)
+        .where(await _visible_cards_filter(db, current_user))
+        .order_by(CreditCard.created_at, CreditCard.id)
+    )
     cards = result.all()
 
     # Calcular saldo em aberto para cada cartao a partir das faturas abertas
@@ -106,11 +157,14 @@ async def list_credit_cards(current_user: CurrentUser, db: DbSession):
             card_variant=card.card_variant,
             last_four_digits=card.last_four_digits,
             annual_fee=float(card.annual_fee) if card.annual_fee else None,
-            annual_fee_frequency=card.annual_fee_frequency,
+            annual_fee_frequency=card.annual_fee_frequency or "monthly",
             annual_fee_waived=card.annual_fee_waived,
             color=account.color,
             icon=account.icon,
             is_active=card.is_active,
+            has_invoice_password=bool(card.invoice_password_encrypted),
+            ownership_type=account.ownership_type,
+            user_id=card.user_id,
         )
         for card, account in cards
     ]
@@ -167,36 +221,7 @@ async def create_credit_card(
     await db.refresh(credit_card)
     await db.refresh(account)
 
-    return CreditCardResponse(
-        id=credit_card.id,
-        account_id=credit_card.account_id,
-        user_id=credit_card.user_id,
-        credit_limit=float(credit_card.credit_limit),
-        closing_day=credit_card.closing_day,
-        due_day=credit_card.due_day,
-        has_points=credit_card.has_points,
-        points_program=credit_card.points_program,
-        points_program_name=credit_card.points_program_name,
-        points_factor=float(credit_card.points_factor),
-        points_factor_international=float(credit_card.points_factor_international)
-        if credit_card.points_factor_international
-        else None,
-        nickname=credit_card.nickname,
-        bank_id=credit_card.bank_id,
-        card_brand=credit_card.card_brand,
-        card_variant=credit_card.card_variant,
-        last_four_digits=credit_card.last_four_digits,
-        annual_fee=float(credit_card.annual_fee) if credit_card.annual_fee else None,
-        annual_fee_waived=credit_card.annual_fee_waived,
-        benefits_notes=credit_card.benefits_notes,
-        is_active=credit_card.is_active,
-        created_at=credit_card.created_at,
-        updated_at=credit_card.updated_at,
-        account_name=account.name,
-        account_balance=float(account.balance),
-        account_color=account.color,
-        account_icon=account.icon,
-    )
+    return _to_response(credit_card, account)
 
 
 @router.get("/{card_id}", response_model=CreditCardResponse)
@@ -206,51 +231,8 @@ async def get_credit_card(
     db: DbSession,
 ):
     """Retorna um cartao de credito especifico"""
-    result = await db.execute(
-        select(CreditCard, Account)
-        .join(Account, CreditCard.account_id == Account.id)
-        .where(
-            CreditCard.id == card_id,
-            CreditCard.user_id == current_user.id,
-        )
-    )
-    row = result.first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Cartão não encontrado")
-
-    card, account = row
-
-    return CreditCardResponse(
-        id=card.id,
-        account_id=card.account_id,
-        user_id=card.user_id,
-        credit_limit=float(card.credit_limit),
-        closing_day=card.closing_day,
-        due_day=card.due_day,
-        has_points=card.has_points,
-        points_program=card.points_program,
-        points_program_name=card.points_program_name,
-        points_factor=float(card.points_factor),
-        points_factor_international=float(card.points_factor_international)
-        if card.points_factor_international
-        else None,
-        nickname=card.nickname,
-        bank_id=card.bank_id,
-        card_brand=card.card_brand,
-        card_variant=card.card_variant,
-        last_four_digits=card.last_four_digits,
-        annual_fee=float(card.annual_fee) if card.annual_fee else None,
-        annual_fee_waived=card.annual_fee_waived,
-        benefits_notes=card.benefits_notes,
-        is_active=card.is_active,
-        created_at=card.created_at,
-        updated_at=card.updated_at,
-        has_invoice_password=bool(card.invoice_password_encrypted),
-        account_name=account.name,
-        account_balance=float(account.balance),
-        account_color=account.color,
-        account_icon=account.icon,
-    )
+    card, account = await _get_card_or_404(db, current_user, card_id)
+    return _to_response(card, account)
 
 
 @router.patch("/{card_id}", response_model=CreditCardResponse)
@@ -261,19 +243,8 @@ async def update_credit_card(
     db: DbSession,
 ):
     """Atualiza um cartao de credito"""
-    result = await db.execute(
-        select(CreditCard, Account)
-        .join(Account, CreditCard.account_id == Account.id)
-        .where(
-            CreditCard.id == card_id,
-            CreditCard.user_id == current_user.id,
-        )
-    )
-    row = result.first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Cartão não encontrado")
-
-    card, account = row
+    card, account = await _get_card_or_404(db, current_user, card_id)
+    await validate_edit_permission(db, current_user, card.user_id, account.ownership_type)
 
     # Update card fields
     card_fields = [
@@ -297,54 +268,88 @@ async def update_credit_card(
         "is_active",
     ]
     account_fields = ["name", "color", "icon"]
+    # Colunas NOT NULL: null explícito no PATCH vira "não mexer", não erro 500
+    not_nullable = {
+        "credit_limit",
+        "closing_day",
+        "due_day",
+        "has_points",
+        "points_factor",
+        "annual_fee_frequency",
+        "annual_fee_waived",
+        "is_active",
+        "name",
+    }
 
     update_data = data.model_dump(exclude_unset=True)
 
     for field in card_fields:
         if field in update_data:
             value = update_data[field]
+            if value is None and field in not_nullable:
+                continue
             if field == "points_program" and value:
                 value = value.value
             setattr(card, field, value)
 
     for field in account_fields:
         if field in update_data:
+            if update_data[field] is None and field in not_nullable:
+                continue
             setattr(account, field, update_data[field])
 
     await db.commit()
     await db.refresh(card)
     await db.refresh(account)
 
-    return CreditCardResponse(
-        id=card.id,
-        account_id=card.account_id,
-        user_id=card.user_id,
-        credit_limit=float(card.credit_limit),
-        closing_day=card.closing_day,
-        due_day=card.due_day,
-        has_points=card.has_points,
-        points_program=card.points_program,
-        points_program_name=card.points_program_name,
-        points_factor=float(card.points_factor),
-        points_factor_international=float(card.points_factor_international)
-        if card.points_factor_international
-        else None,
-        nickname=card.nickname,
-        bank_id=card.bank_id,
-        card_brand=card.card_brand,
-        card_variant=card.card_variant,
-        last_four_digits=card.last_four_digits,
-        annual_fee=float(card.annual_fee) if card.annual_fee else None,
-        annual_fee_waived=card.annual_fee_waived,
-        benefits_notes=card.benefits_notes,
-        is_active=card.is_active,
-        created_at=card.created_at,
-        updated_at=card.updated_at,
-        has_invoice_password=bool(card.invoice_password_encrypted),
-        account_name=account.name,
-        account_balance=float(account.balance),
-        account_color=account.color,
-        account_icon=account.icon,
+    return _to_response(card, account)
+
+
+def _card_transactions(card: CreditCard):
+    """Lançamentos do cartão: os da conta do cartão e as compras marcadas com ele em outra conta"""
+    return or_(Transaction.account_id == card.account_id, Transaction.credit_card_id == card.id)
+
+
+def _card_installments(card: CreditCard):
+    return or_(
+        InstallmentSeries.account_id == card.account_id,
+        InstallmentSeries.credit_card_id == card.id,
+    )
+
+
+async def _linked_data(db, card: CreditCard) -> dict[str, int]:
+    """O que some junto com o cartão: lançamentos, faturas e parcelamentos"""
+    transactions = await db.scalar(
+        select(func.count(Transaction.id)).where(_card_transactions(card))
+    )
+    invoices = await db.scalar(
+        select(func.count(CreditCardInvoice.id)).where(CreditCardInvoice.credit_card_id == card.id)
+    )
+    installments = await db.scalar(
+        select(func.count(InstallmentSeries.id)).where(_card_installments(card))
+    )
+    return {
+        "transactions": transactions or 0,
+        "invoices": invoices or 0,
+        "installments": installments or 0,
+    }
+
+
+def _linked_message(linked: dict[str, int]) -> str:
+    parts = []
+    if linked["transactions"]:
+        n = linked["transactions"]
+        parts.append(f"{n} lançamento{'s' if n != 1 else ''}")
+    if linked["invoices"]:
+        n = linked["invoices"]
+        parts.append(f"{n} fatura{'s' if n != 1 else ''}")
+    if linked["installments"]:
+        n = linked["installments"]
+        parts.append(f"{n} parcelamento{'s' if n != 1 else ''}")
+    listed = ", ".join(parts[:-1]) + (" e " if len(parts) > 1 else "") + parts[-1]
+    return (
+        f"Este cartão tem {listed}. Excluir o cartão apaga esses dados também. "
+        "Se preferir guardar o histórico, desative o cartão em vez de excluir."
     )
 
 
@@ -353,28 +358,47 @@ async def delete_credit_card(
     card_id: int,
     current_user: CurrentUser,
     db: DbSession,
+    force: bool = Query(
+        False,
+        description="Exclui também lançamentos, faturas e parcelamentos do cartão",
+    ),
 ):
-    """Remove um cartao de credito (e sua conta associada)"""
-    result = await db.execute(
-        select(CreditCard).where(
-            CreditCard.id == card_id,
-            CreditCard.user_id == current_user.id,
+    """
+    Remove um cartao de credito e a conta associada.
+
+    Sem `force`, um cartão com lançamentos, faturas ou parcelamentos devolve 409 com a
+    contagem (detail.code = credit_card_has_linked_data), para o app pedir confirmação.
+    """
+    card, account = await _get_card_or_404(db, current_user, card_id)
+    await validate_delete_permission(db, current_user, card.user_id, account.ownership_type)
+
+    linked = await _linked_data(db, card)
+    if any(linked.values()) and not force:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "credit_card_has_linked_data",
+                "message": _linked_message(linked),
+                **linked,
+            },
         )
+
+    # Remoção explícita, sem depender só do ON DELETE do banco:
+    # recurrence_parent_id não tem ON DELETE e travaria a exclusão dos lançamentos
+    card_tx_ids = select(Transaction.id).where(_card_transactions(card))
+    await db.execute(
+        update(Transaction)
+        .where(Transaction.recurrence_parent_id.in_(card_tx_ids))
+        .values(recurrence_parent_id=None)
     )
-    card = result.scalar_one_or_none()
-    if not card:
-        raise HTTPException(status_code=404, detail="Cartão não encontrado")
-
-    # Deleting the card will cascade delete the account due to ondelete="CASCADE"
-    # Actually, account has the cascade, so we need to delete account first
-    account_result = await db.execute(select(Account).where(Account.id == card.account_id))
-    account = account_result.scalar_one_or_none()
-
-    if account:
-        await db.delete(account)  # This cascades to delete the card
-    else:
-        await db.delete(card)
-
+    await db.execute(delete(Transaction).where(_card_transactions(card)))
+    await db.execute(delete(InstallmentSeries).where(_card_installments(card)))
+    await db.execute(
+        delete(RecurringTransaction).where(RecurringTransaction.account_id == account.id)
+    )
+    await db.execute(delete(CreditCardInvoice).where(CreditCardInvoice.credit_card_id == card.id))
+    await db.execute(delete(CreditCard).where(CreditCard.id == card.id))
+    await db.execute(delete(Account).where(Account.id == account.id))
     await db.commit()
 
 
@@ -400,15 +424,7 @@ async def project_recurring_transactions(
     e cria projecoes (is_paid=False) para os proximos N meses.
     """
     # Verificar se o cartao pertence ao usuario
-    result = await db.execute(
-        select(CreditCard).where(
-            CreditCard.id == card_id,
-            CreditCard.user_id == current_user.id,
-        )
-    )
-    card = result.scalar_one_or_none()
-    if not card:
-        raise HTTPException(status_code=404, detail="Cartão não encontrado")
+    card, _account = await _get_card_or_404(db, current_user, card_id)
 
     # Projetar recorrentes
     service = InvoiceService(db)
@@ -456,15 +472,7 @@ async def recalculate_card_invoices(
     from app.models.transaction import Transaction
 
     # Verificar se o cartao pertence ao usuario
-    result = await db.execute(
-        select(CreditCard).where(
-            CreditCard.id == card_id,
-            CreditCard.user_id == current_user.id,
-        )
-    )
-    card = result.scalar_one_or_none()
-    if not card:
-        raise HTTPException(status_code=404, detail="Cartão não encontrado")
+    card, _account = await _get_card_or_404(db, current_user, card_id)
 
     service = InvoiceService(db)
     affected_invoices = set()
@@ -616,13 +624,8 @@ async def save_invoice_password(
     from app.core.crypto import encrypt_password
 
     # Fetch card and verify ownership
-    result = await db.execute(
-        select(CreditCard).where(CreditCard.id == card_id, CreditCard.user_id == current_user.id)
-    )
-    card = result.scalar_one_or_none()
-
-    if not card:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cartão não encontrado")
+    card, account = await _get_card_or_404(db, current_user, card_id)
+    await validate_edit_permission(db, current_user, card.user_id, account.ownership_type)
 
     # Encrypt and save password
     card.invoice_password_encrypted = encrypt_password(request.password)
@@ -644,13 +647,8 @@ async def delete_invoice_password(
         card_id: Credit card ID
     """
     # Fetch card and verify ownership
-    result = await db.execute(
-        select(CreditCard).where(CreditCard.id == card_id, CreditCard.user_id == current_user.id)
-    )
-    card = result.scalar_one_or_none()
-
-    if not card:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cartão não encontrado")
+    card, account = await _get_card_or_404(db, current_user, card_id)
+    await validate_edit_permission(db, current_user, card.user_id, account.ownership_type)
 
     # Remove password
     card.invoice_password_encrypted = None

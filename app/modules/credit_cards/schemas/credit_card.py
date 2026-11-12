@@ -27,6 +27,8 @@ class CreditCardBase(BaseModel):
 
 
 class CreditCardCreate(CreditCardBase):
+    # Na entrada só aceita exatamente 4 dígitos (a resposta tolera dados antigos)
+    last_four_digits: str | None = Field(None, pattern=r"^\d{4}$")
     # Account info - will create the linked account
     name: str = Field(min_length=1, max_length=100)
     color: str | None = None
@@ -48,7 +50,7 @@ class CreditCardUpdate(BaseModel):
     bank_id: str | None = Field(None, max_length=50)
     card_brand: str | None = None
     card_variant: str | None = None
-    last_four_digits: str | None = Field(None, max_length=4)
+    last_four_digits: str | None = Field(None, pattern=r"^\d{4}$")
     annual_fee: float | None = None
     annual_fee_frequency: str | None = None
     annual_fee_waived: bool | None = None
@@ -76,6 +78,7 @@ class CreditCardResponse(CreditCardBase):
     account_balance: float = 0
     account_color: str | None = None
     account_icon: str | None = None
+    ownership_type: str = "personal"
 
     class Config:
         from_attributes = True
@@ -106,6 +109,9 @@ class CreditCardListResponse(BaseModel):
     color: str | None
     icon: str | None
     is_active: bool
+    has_invoice_password: bool = False
+    ownership_type: str = "personal"
+    user_id: int | None = None
 
     class Config:
         from_attributes = True
@@ -114,7 +120,7 @@ class CreditCardListResponse(BaseModel):
 class InvoicePasswordRequest(BaseModel):
     """Request to save invoice password"""
 
-    password: str
+    password: str = Field(min_length=1, max_length=128)
 
     class Config:
         json_schema_extra = {"example": {"password": "mypassword123"}}
