@@ -211,6 +211,11 @@ class LLMOCRService:
             # Extrair OCR text (disponível quando Mistral provider é usado)
             ocr_text = result.pop("_ocr_text", None)
 
+            if not items:
+                # nada para revisar: o app pede lançamento manual em vez de abrir uma tela vazia
+                logger.info("document_without_items document_type=%s", document_type)
+                return {"items": [], "document_type": document_type, "error": "no_items_found"}
+
             if items:
                 items = self.validator.validate_and_clean(
                     items, card_info, document_type, total_amount, ocr_text=ocr_text

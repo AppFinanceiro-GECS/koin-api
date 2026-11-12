@@ -194,6 +194,8 @@ class GoogleProvider(BaseProvider):
         config = types.GenerateContentConfig(
             temperature=0.1,
             max_output_tokens=16000,
+            response_mime_type="application/json",
+            response_schema=self.response_schema,
             thinking_config=self._thinking_config(types),
         )
 
@@ -277,13 +279,13 @@ class GoogleProvider(BaseProvider):
 
 ⚠️ IMPORTANTE: Retorne um OBJETO JSON com esta estrutura:
 {{
-  "document_type": "fatura_cartao",
+  "document_type": "fatura_cartao | cupom_fiscal | nota_fiscal | boleto | comprovante | comprovante_pix | nao_financeiro",
   "card_info": {{ ... }},
   "items": [{{ ... }}]
 }}
 
 NÃO retorne apenas um array! Retorne um objeto completo.
-Extraia TODAS as transações do documento PDF anexado."""
+Primeiro confira se é um documento de despesa (passo 0); se for, extraia TODAS as transações do PDF anexado."""
 
                 contents = [
                     types.Part.from_bytes(data=pdf_content, mime_type="application/pdf"),
@@ -325,11 +327,11 @@ As colunas estão representadas lado a lado na mesma linha.
 {ocr_text}
 ```
 
-Agora extraia TODAS as transações deste texto.
+Primeiro confira se é um documento de despesa (passo 0); se for, extraia TODAS as transações deste texto.
 
 ⚠️ IMPORTANTE: Retorne um OBJETO JSON com esta estrutura:
 {{
-  "document_type": "fatura_cartao",
+  "document_type": "fatura_cartao | cupom_fiscal | nota_fiscal | boleto | comprovante | comprovante_pix | nao_financeiro",
   "card_info": {{ ... }},
   "items": [{{ ... }}]
 }}

@@ -273,6 +273,15 @@ class ResponseParser:
                     "error": "LLM não conseguiu extrair dados do documento. O documento pode estar ilegível ou em formato não suportado.",
                 }
 
+            # O modelo decide se é documento de despesa (fatura, nota, boleto, comprovante)
+            if str(data.get("document_type") or "").strip().lower() == "nao_financeiro":
+                return {
+                    "items": [],
+                    "document_type": "nao_financeiro",
+                    "rejection_reason": data.get("rejection_reason"),
+                    "error": "not_financial_document",
+                }
+
             items = []
             for item in data.get("items", []):
                 normalized = self._normalize_item(item)

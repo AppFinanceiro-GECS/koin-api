@@ -47,11 +47,12 @@ PAYMENT_PATTERNS = [
 # Padroes que indicam subtotais/headers de secao (NAO sao transacoes reais)
 SECTION_HEADER_PATTERNS = [
     # Nomes de empresas/titulares que aparecem como headers de secao
-    r"^[A-Z\s]+LTDA$",
-    r"^[A-Z\s]+S\.?A\.?$",
-    r"^[A-Z\s]+EIRELI$",
-    r"^[A-Z\s]+MEI$",
-    r"^[A-Z\s]+ME$",
+    # O sufixo precisa ser palavra separada: "MANOEL F DE SOUSA" termina em "SA" e é compra
+    r"^[A-Z\s]+\sLTDA$",
+    r"^[A-Z\s]+\sS\.?A\.?$",
+    r"^[A-Z\s]+\sEIRELI$",
+    r"^[A-Z\s]+\sMEI$",
+    r"^[A-Z\s]+\sME$",
     # Headers comuns de secoes Nubank
     r"pagamentos e financiamentos",
     r"transacoes de \d+ [a-z]+ a \d+ [a-z]+",
@@ -356,7 +357,9 @@ class ExtractionValidator:
 
         for item in items:
             desc_lower = item.get("description", "").lower()
-            is_invoice_payment = item.get("transaction_type") == "pagamento" and any(
+            # Qualquer pagamento serve de candidato (Inter: "DEB AUT PARCIAL", "PAGAMENTO
+            # ON LINE"); só sai se a soma do resto fechar com o total, conferido abaixo.
+            is_invoice_payment = item.get("transaction_type") == "pagamento" or any(
                 p in desc_lower
                 for p in [
                     "pagamento em",
