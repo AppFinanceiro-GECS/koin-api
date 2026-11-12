@@ -94,6 +94,22 @@ class CardInfo(BaseModel):
     credit_available: float | None = Field(default=None, description="Limite disponivel")
 
 
+class PaymentCard(BaseModel):
+    """Cartão citado num comprovante: o usado na compra ou o da fatura que foi paga."""
+
+    card_issuer: str | None = Field(
+        default=None,
+        description="Emissor do CARTAO (nubank, itau, inter...), nao o banco de onde saiu o dinheiro",
+    )
+    card_bank: str | None = Field(default=None, description="Nome do banco emissor do cartao")
+    card_brand: str | None = Field(
+        default=None, description="Bandeira: visa, mastercard, elo, hipercard, amex, diners"
+    )
+    card_last_digits: str | None = Field(
+        default=None, description="Ultimos 4 digitos do cartao (ex: '**** 1234' -> '1234')"
+    )
+
+
 class FaturaExtracao(BaseModel):
     """Resultado da extracao de uma fatura de cartao."""
 
@@ -104,6 +120,7 @@ class FaturaExtracao(BaseModel):
         "boleto",
         "comprovante",
         "comprovante_pix",
+        "comprovante_fatura",
         "nao_financeiro",
     ] = Field(
         description="Tipo do documento. nao_financeiro quando NAO for fatura de cartao, nota "
@@ -121,6 +138,11 @@ class FaturaExtracao(BaseModel):
     total_amount: float | None = Field(
         default=None,
         description="Valor total pago ou a pagar (nota, cupom, boleto, comprovante)",
+    )
+    payment_card: PaymentCard | None = Field(
+        default=None,
+        description="So para comprovante, cupom, nota e comprovante_fatura: o cartao usado na "
+        "compra ou o cartao cuja fatura foi paga. Nunca para fatura_cartao (use card_info)",
     )
     items: list[FaturaItem] = Field(
         description="Lista de transacoes/itens extraidos. Vazia se nao_financeiro"

@@ -24,6 +24,9 @@ MATCHED = "matched"  # um cartão cadastrado bate com a fatura
 NEW = "new"  # fatura de um cartão que ainda não existe: o app oferece cadastrar
 AMBIGUOUS = "ambiguous"  # mais de um cartão bate: o app pede para escolher
 NONE = "none"  # documento sem dados de cartão
+# comprovante com o final de um cartão que não está cadastrado: o app pergunta se quer
+# cadastrar, mas o comprovante nunca cria o cartão sozinho
+UNREGISTERED = "unregistered"
 
 
 def _norm(value: str | None) -> str:
@@ -198,3 +201,37 @@ async def match_card(
     if is_invoice(document_type, card_info):
         return CardMatch(status=NEW, suggestion=suggestion_from_card_info(card_info))
     return CardMatch(status=NONE)
+
+
+async def match_receipt_card(
+    db: AsyncSession, user: User, payment_card: dict | None, document_type: str | None
+) -> CardMatch:
+    """
+    Cartão de um comprovante de compra (via da maquininha, e-mail da loja, cupom).
+
+    Só reconhece pelo final: sem os 4 dígitos, a compra fica numa conta comum. Se nenhum
+    cartão tem o final, devolve `unregistered` com o que o comprovante traz (final, bandeira
+    e banco) para o app perguntar se a pessoa quer cadastrar o cartão.
+    """
+    digits = _digits((payment_card or {}).get("card_last_digits"))
+    if not digits:
+        return CardMatch(status=NONE)
+
+    match = await match_card(db, user, payment_card, document_type)
+    if match.status != NONE:
+        return match
+
+    brand = payment_card.get("card_brand")
+    bank = payment_card.get("card_bank") or (payment_card.get("card_issuer") or "").title() or None
+    return CardMatch(
+        status=UNREGISTERED,
+        suggestion=CardSuggestion(
+            name=(bank or (brand.title() if isinstance(brand, str) and brand else "Cartão"))[:50],
+            last_four_digits=digits,
+            bank_id=_norm(payment_card.get("card_issuer")) or None,
+            card_brand=brand.title() if isinstance(brand, str) and brand else None,
+            closing_day=None,
+            due_day=None,
+            credit_limit=None,
+        ),
+    )

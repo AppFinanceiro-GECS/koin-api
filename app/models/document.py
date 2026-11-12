@@ -40,6 +40,8 @@ class DocumentType(str, Enum):
     FATURA_CARTAO = "fatura_cartao"
     COMPROVANTE = "comprovante"
     COMPROVANTE_PIX = "comprovante_pix"
+    # Comprovante de pagamento de fatura de cartão: liga o pagamento à fatura em aberto
+    COMPROVANTE_FATURA = "comprovante_fatura"
     EXTRATO = "extrato"
     EXTRATO_BANCARIO = "extrato_bancario"
     NOTA_FISCAL = "nota_fiscal"
@@ -57,6 +59,9 @@ class DocumentType(str, Enum):
             return cls(s)
         except ValueError:
             pass
+        # "comprovante_pagamento_fatura" é pagamento, não a fatura em si
+        if "fatura" in s and ("comprovante" in s or "pagamento" in s or "pgto" in s):
+            return cls.COMPROVANTE_FATURA
         if "pix" in s:
             return cls.COMPROVANTE_PIX
         if "fatura" in s or "cartao" in s or "cartão" in s or "card" in s:

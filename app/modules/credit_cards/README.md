@@ -20,7 +20,9 @@ credit_cards/
 │   ├── credit_card.py    # CreditCardCreate, CreditCardResponse, CreditCardListResponse
 │   └── invoice.py        # InvoiceCreate, InvoiceResponse, InvoicePayment, etc.
 ├── services/
-│   └── invoice_service.py # InvoiceService (faturas, projecoes, pagamentos)
+│   ├── invoice_service.py # InvoiceService (faturas, projecoes, pagamentos)
+│   ├── card_matching.py   # De qual cartao e a fatura ou o comprovante (final e banco)
+│   └── invoice_payment_matching.py # Qual fatura em aberto um comprovante de pagamento quita
 └── routers/
     ├── credit_cards.py   # Endpoints de cartoes
     └── invoices.py       # Endpoints de faturas

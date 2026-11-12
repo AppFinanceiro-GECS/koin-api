@@ -10,22 +10,35 @@ from fastapi import (
 )
 
 from app.core.deps import CurrentUser, DbSession
-from app.models.document import DocumentStatus
+from app.models.document import DocumentStatus, DocumentType
 from app.modules.documents.schemas.document import DocumentAsyncUploadResponse, DocumentResponse
 from app.modules.documents.services.document_service import DocumentService, PasswordRequiredError
 
 router = APIRouter()
 
 
-async def build_card_match(db, user, card_info, document_type):
-    """De qual cartão é o documento: reconhecido pelo final e pelo banco"""
-    from app.modules.credit_cards.services.card_matching import match_card
+async def build_card_match(db, user, card_info, document_type, payment_card=None):
+    """
+    De qual cartão é o documento: a fatura pelo final e pelo banco; comprovante de compra
+    só pelo final (sem cartão com esse final, `unregistered` para o app oferecer cadastro)
+    """
+    from app.modules.credit_cards.services.card_matching import (
+        is_invoice,
+        match_card,
+        match_receipt_card,
+    )
     from app.modules.documents.schemas.document import (
         CardMatchResponse,
         CardSuggestionResponse,
     )
 
-    match = await match_card(db, user, card_info or None, document_type)
+    if is_invoice(document_type, card_info):
+        match = await match_card(db, user, card_info or None, document_type)
+    elif DocumentType.from_string(document_type) == DocumentType.COMPROVANTE_FATURA:
+        # o cartão do pagamento vai em invoice_payment; a despesa não é do cartão
+        match = await match_card(db, user, None, document_type)
+    else:
+        match = await match_receipt_card(db, user, payment_card or card_info, document_type)
     return CardMatchResponse(
         status=match.status,
         credit_card_id=match.credit_card_id,
@@ -34,6 +47,29 @@ async def build_card_match(db, user, card_info, document_type):
         suggestion=CardSuggestionResponse(**match.suggestion.__dict__)
         if match.suggestion
         else None,
+    )
+
+
+async def build_invoice_payment(db, user, extraction_data):
+    """Comprovante de pagamento de fatura: qual fatura em aberto ele quita"""
+    from app.modules.credit_cards.services.invoice_payment_matching import (
+        match_invoice_payment,
+    )
+    from app.modules.documents.schemas.document import (
+        InvoicePaymentCandidateResponse,
+        InvoicePaymentMatchResponse,
+    )
+
+    match = await match_invoice_payment(db, user, extraction_data)
+    return InvoicePaymentMatchResponse(
+        status=match.status,
+        amount_paid=match.amount_paid,
+        payment_date=match.payment_date,
+        invoice=InvoicePaymentCandidateResponse(**match.invoice.__dict__)
+        if match.invoice
+        else None,
+        amount_matches=match.amount_matches,
+        candidates=[InvoicePaymentCandidateResponse(**c.__dict__) for c in match.candidates],
     )
 
 
@@ -164,6 +200,7 @@ async def get_document(
             DetectedPaymentResponse,
             ExtractedItemResponse,
             FutureInstallmentResponse,
+            PaymentCardResponse,
             PaymentInfoResponse,
         )
         from app.modules.known_services.schemas.recurring_detection import RecurringDetection
@@ -267,9 +304,18 @@ async def get_document(
                 credit_available=card_info.get("credit_available"),
             )
 
+        payment_card = extraction_data.get("payment_card")
+        if payment_card:
+            response.payment_card = PaymentCardResponse(**payment_card)
+
         response.card_match = await build_card_match(
-            db, current_user, card_info, document.document_type
+            db, current_user, card_info, document.document_type, payment_card
         )
+
+        if DocumentType.from_string(document.document_type) == DocumentType.COMPROVANTE_FATURA:
+            response.invoice_payment = await build_invoice_payment(
+                db, current_user, extraction_data
+            )
 
         # Payment info
         payment_info = extraction_data.get("payment_info")

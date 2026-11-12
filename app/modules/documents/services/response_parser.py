@@ -319,6 +319,11 @@ class ResponseParser:
                         result["card_info"]["invoice_year"],
                     )
 
+            # Comprovantes: cartão da compra ou da fatura paga (nunca cria cartão)
+            payment_card = self._normalize_payment_card(data.get("payment_card"))
+            if payment_card:
+                result["payment_card"] = payment_card
+
             # Parse merchant_info for cupom fiscal (needed for payment_info)
             merchant_info = data.get("merchant_info")
             if merchant_info and isinstance(merchant_info, dict):
@@ -584,6 +589,21 @@ class ResponseParser:
             fixed_items.append(item)
 
         return fixed_items
+
+    def _normalize_payment_card(self, payment_card) -> dict | None:
+        """Final com 4 dígitos e textos limpos; None quando não há nada útil"""
+        if not isinstance(payment_card, dict):
+            return None
+        digits = "".join(
+            ch for ch in str(payment_card.get("card_last_digits") or "") if ch.isdigit()
+        )
+        result = {
+            "card_issuer": (str(payment_card.get("card_issuer") or "").strip().lower() or None),
+            "card_bank": (str(payment_card.get("card_bank") or "").strip() or None),
+            "card_brand": (str(payment_card.get("card_brand") or "").strip().lower() or None),
+            "card_last_digits": digits[-4:] if len(digits) >= 4 else None,
+        }
+        return result if any(result.values()) else None
 
     def _normalize_card_info(self, card_info: dict) -> dict:
         """Normaliza informacoes do cartao"""
