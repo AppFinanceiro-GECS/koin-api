@@ -36,7 +36,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Headers de segurança
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
+        # X-XSS-Protection saiu: é obsoleto e, nos navegadores antigos, pode abrir brecha (#51)
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         # HSTS apenas em produção (HTTPS)
@@ -74,6 +74,16 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 
 
+def docs_urls(environment: str) -> dict:
+    """
+    Swagger, ReDoc e openapi.json ficam abertos em desenvolvimento e na hml, para os grupos,
+    e fechados em produção: não expõem o mapa da API (#51). O contrato vai na release (ci.yml).
+    """
+    if environment == "production":
+        return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    return {"docs_url": "/docs", "redoc_url": "/redoc", "openapi_url": "/openapi.json"}
+
+
 app = FastAPI(
     title=settings.app_name,
     description="API para controle financeiro pessoal inteligente",
@@ -82,6 +92,7 @@ app = FastAPI(
     # operationId = nome da função da rota: o cliente gerado no koin-app ganha nomes
     # legíveis (login, list_transactions) em vez de login_api_v1_auth_login_post (#54)
     generate_unique_id_function=lambda route: route.name,
+    **docs_urls(settings.environment),
 )
 
 # Rate limiting

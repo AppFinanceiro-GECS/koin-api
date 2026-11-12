@@ -1,6 +1,9 @@
 (api) {
 	encode gzip zstd
 
+	# Não anuncia a stack (#51)
+	header -Server
+
 	# Uploads de faturas/cupons (MAX_UPLOAD_SIZE_MB=10 na API; folga para multipart)
 	request_body {
 		max_size 15MB
