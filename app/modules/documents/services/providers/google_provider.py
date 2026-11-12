@@ -279,8 +279,9 @@ class GoogleProvider(BaseProvider):
 
 ⚠️ IMPORTANTE: Retorne um OBJETO JSON com esta estrutura:
 {{
-  "document_type": "fatura_cartao | cupom_fiscal | nota_fiscal | boleto | comprovante | comprovante_pix | nao_financeiro",
+  "document_type": "fatura_cartao | cupom_fiscal | nota_fiscal | boleto | comprovante | comprovante_pix | comprovante_fatura | nao_financeiro",
   "card_info": {{ ... }},
+  "payment_card": {{ ... }},
   "items": [{{ ... }}]
 }}
 
@@ -331,8 +332,9 @@ Primeiro confira se é um documento de despesa (passo 0); se for, extraia TODAS 
 
 ⚠️ IMPORTANTE: Retorne um OBJETO JSON com esta estrutura:
 {{
-  "document_type": "fatura_cartao | cupom_fiscal | nota_fiscal | boleto | comprovante | comprovante_pix | nao_financeiro",
+  "document_type": "fatura_cartao | cupom_fiscal | nota_fiscal | boleto | comprovante | comprovante_pix | comprovante_fatura | nao_financeiro",
   "card_info": {{ ... }},
+  "payment_card": {{ ... }},
   "items": [{{ ... }}]
 }}
 

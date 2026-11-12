@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from pydantic import BaseModel, field_validator
@@ -144,6 +144,9 @@ class CardMatchResponse(BaseModel):
     matched: um cartão cadastrado bate (pelo final, ou pelo banco quando falta o final)
     new: é fatura de um cartão que ainda não existe; `suggestion` traz os dados para cadastrar
     ambiguous: mais de um cartão bate; `candidate_ids` lista quais
+    unregistered: comprovante de compra com o final de um cartão que não está cadastrado;
+        `suggestion` traz final, bandeira e banco para o app perguntar se quer cadastrar
+        (o comprovante nunca cria o cartão sozinho)
     none: o documento não traz dados de cartão (cupom, comprovante de PIX etc.)
     """
 
@@ -152,6 +155,48 @@ class CardMatchResponse(BaseModel):
     credit_card_name: str | None = None
     candidate_ids: list[int] = []
     suggestion: CardSuggestionResponse | None = None
+
+
+class PaymentCardResponse(BaseModel):
+    """Cartão citado num comprovante: o da compra ou o da fatura paga"""
+
+    card_issuer: str | None = None
+    card_bank: str | None = None
+    card_brand: str | None = None
+    card_last_digits: str | None = None
+
+
+class InvoicePaymentCandidateResponse(BaseModel):
+    """Fatura que um comprovante de pagamento pode quitar"""
+
+    invoice_id: int
+    credit_card_id: int
+    credit_card_name: str
+    reference_month: int
+    reference_year: int
+    due_date: date
+    total_amount: float
+    remaining_amount: float
+
+
+class InvoicePaymentMatchResponse(BaseModel):
+    """
+    Qual fatura o comprovante de pagamento quita (só para comprovante_fatura).
+
+    matched: `invoice` é a fatura em aberto do cartão; `amount_matches` diz se o valor pago
+        fecha com o total ou com o que falta pagar (senão é pagamento parcial)
+    ambiguous: mais de uma fatura serve; `candidates` lista quais
+    already_paid: a fatura com esse valor já está paga (`invoice`)
+    none: nenhuma fatura em aberto bate pelo banco e pelo valor
+    O app marca como paga com POST /invoices/{invoice_id}/pay e a conta de origem escolhida.
+    """
+
+    status: str
+    amount_paid: float | None = None
+    payment_date: date | None = None
+    invoice: InvoicePaymentCandidateResponse | None = None
+    amount_matches: bool = False
+    candidates: list[InvoicePaymentCandidateResponse] = []
 
 
 class DetectedPaymentResponse(BaseModel):
@@ -201,6 +246,12 @@ class DocumentResponse(BaseModel):
 
     # De qual cartão é o documento (reconhecido pelo final e pelo banco)
     card_match: CardMatchResponse | None = None
+
+    # Comprovantes: cartão da compra ou da fatura paga (lido do documento)
+    payment_card: PaymentCardResponse | None = None
+
+    # Comprovante de pagamento de fatura: qual fatura em aberto ele quita
+    invoice_payment: InvoicePaymentMatchResponse | None = None
 
     # Informacoes de pagamento (apenas para cupom_fiscal)
     payment_info: PaymentInfoResponse | None = None

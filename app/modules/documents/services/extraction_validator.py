@@ -81,6 +81,13 @@ class ExtractionValidator:
         if not items:
             return items
 
+        if document_type == "comprovante_fatura":
+            # o único item é o próprio pagamento: as regras de fatura o tirariam como
+            # "pagamento da fatura anterior" ou "total da fatura"
+            for item in items:
+                item["amount"] = abs(item.get("amount", 0))
+            return items
+
         is_cupom_fiscal = document_type == "cupom_fiscal"
 
         # Pipeline de validacao - primeiro remove itens invalidos

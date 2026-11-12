@@ -15,6 +15,9 @@ uma despesa **paga ou a pagar**. Escolha o `document_type`:
 - **boleto**: boleto ou conta a pagar (luz, água, internet, telefone, aluguel, condomínio, mensalidade, IPVA)
 - **comprovante**: comprovante ou recibo de pagamento já feito (cartão, transferência, recibo assinado)
 - **comprovante_pix**: comprovante de Pix enviado
+- **comprovante_fatura**: comprovante de PAGAMENTO de fatura de cartão de crédito ("Pagamento de
+  fatura", "Pagamento cartão Nubank", boleto da fatura pago, Pix para a fatura). Não confunda com a
+  própria fatura (fatura_cartao), que lista as compras e tem vencimento
 - **nao_financeiro**: QUALQUER outra coisa
 
 Use **nao_financeiro** (e devolva `items: []`, sem `card_info`) quando o documento for, por exemplo:
@@ -41,6 +44,20 @@ Extraia TODOS os itens/lançamentos e retorne no formato JSON especificado.
   (moradia, servicos, educacao...) e `total_amount` no raiz.
 - **comprovante / comprovante_pix**: UM item com o recebedor como `description`, o valor pago e a
   data do pagamento; `total_amount` no raiz.
+- **comprovante_fatura**: UM item "Pagamento fatura <banco do cartão>" com o valor pago (positivo),
+  a data do pagamento e `transaction_type` "pagamento"; `total_amount` no raiz com o valor pago.
+
+#### payment_card (comprovante, comprovante_fatura, cupom_fiscal, nota_fiscal)
+
+Preencha `payment_card` quando o documento mostrar o cartão de crédito. **Não preencha `card_info`
+nesses documentos**: `card_info` é só da fatura.
+- Compra no cartão (via da maquininha, e-mail da loja, cupom pago no crédito):
+  `card_last_digits` ("**** 1234", "final 1234", "XXXX XXXX XXXX 1234" → "1234") e `card_brand`.
+  `card_issuer` só se o banco do cartão aparecer escrito.
+- comprovante_fatura: o cartão cuja fatura foi paga. `card_issuer`/`card_bank` são o banco
+  **do cartão** (ex.: pagou a fatura do Nubank pelo app do Itaú → `card_issuer` "nubank"), e
+  `card_last_digits` se aparecer.
+- Nunca invente dígitos: sem o final no documento, deixe `card_last_digits` nulo.
 
 ## Regras Criticas
 

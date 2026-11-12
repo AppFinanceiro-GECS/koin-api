@@ -88,7 +88,10 @@ Vantagens: ~60% mais barato, 100% de taxa de sucesso em faturas brasileiras.
 ## Tipos de Documento
 - `fatura_cartao`: Faturas de cartao de credito
 - `cupom_fiscal`: Cupons fiscais / notas fiscais
-- `comprovante`: Comprovantes de pagamento
+- `comprovante`: Comprovantes de pagamento (compra no cartão traz `payment_card` com o final)
+- `comprovante_pix`: Comprovante de Pix enviado
+- `comprovante_fatura`: Comprovante de pagamento de fatura de cartão. `GET /documents/{id}` devolve
+  `invoice_payment` com a fatura em aberto que ele quita (pelo banco e pelo valor)
 - `extrato`: Extratos bancarios (CSV/Excel)
 
 ## Bancos Suportados para Extratos
