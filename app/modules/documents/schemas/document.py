@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.models.document import DocumentStatus, DocumentType
 from app.modules.known_services.schemas.recurring_detection import RecurringDetection
@@ -150,7 +151,7 @@ class DocumentResponse(BaseModel):
     original_filename: str
     mime_type: str
     status: DocumentStatus
-    document_type: DocumentType | None
+    document_type: DocumentType | None = None
     error_message: str | None
     # RN016: o app decide pelo código; next_retry_at diz quando a leitura volta a tentar
     error_code: str | None = None
@@ -171,6 +172,13 @@ class DocumentResponse(BaseModel):
 
     # Informacoes de pagamento (apenas para cupom_fiscal)
     payment_info: PaymentInfoResponse | None = None
+
+    @field_validator("document_type", mode="before")
+    @classmethod
+    def normalize_document_type(cls, v: Any) -> DocumentType | None:
+        if v is None or v == "":
+            return None
+        return DocumentType.from_string(v)
 
     class Config:
         from_attributes = True

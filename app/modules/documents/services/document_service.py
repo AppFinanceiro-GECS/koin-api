@@ -18,7 +18,7 @@ from app.core.config import settings
 from app.core.database import async_session_maker
 from app.core.utils import utc_now
 from app.models.credit_card import CreditCard
-from app.models.document import Document, DocumentStage, DocumentStatus
+from app.models.document import Document, DocumentStage, DocumentStatus, DocumentType
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.modules.documents.services.ai_failures import (
@@ -293,7 +293,10 @@ async def process_document_background(
                             }
 
                 mark_completed(document)
-                document.document_type = extraction_data.get("document_type")
+                raw_type = extraction_data.get("document_type")
+                document.document_type = (
+                    DocumentType.from_string(raw_type).value if raw_type else None
+                )
                 # Salvar dados extraidos para recuperacao posterior
                 document.extracted_data = extraction_data
                 logger.info(
@@ -1072,7 +1075,7 @@ class DocumentService:
             # Determinar tipo de documento
             doc_type = result.get("document_type")
             if doc_type:
-                document.document_type = doc_type
+                document.document_type = DocumentType.from_string(doc_type).value
 
             document.processed_at = utc_now()
             await self.db.flush()
@@ -1299,7 +1302,7 @@ class DocumentService:
         # Determinar tipo de documento
         doc_type = result.get("document_type")
         if doc_type:
-            document.document_type = doc_type
+            document.document_type = DocumentType.from_string(doc_type).value
 
         # Retornar itens individuais com categoria, info do cartao e info de pagamento
         items = result.get("items", [])

@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 from sqlalchemy import JSON, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -38,7 +39,44 @@ class DocumentType(str, Enum):
     CUPOM_FISCAL = "cupom_fiscal"
     FATURA_CARTAO = "fatura_cartao"
     COMPROVANTE = "comprovante"
+    COMPROVANTE_PIX = "comprovante_pix"
     EXTRATO = "extrato"
+    EXTRATO_BANCARIO = "extrato_bancario"
+    NOTA_FISCAL = "nota_fiscal"
+    BOLETO = "boleto"
+
+    @classmethod
+    def from_string(cls, val: Any) -> "DocumentType":
+        if not val:
+            return cls.UNKNOWN
+        if isinstance(val, cls):
+            return val
+        s = str(val).strip().lower()
+        try:
+            return cls(s)
+        except ValueError:
+            pass
+        if "pix" in s:
+            return cls.COMPROVANTE_PIX
+        if "fatura" in s or "cartao" in s or "cartão" in s or "card" in s:
+            return cls.FATURA_CARTAO
+        if "cupom" in s:
+            return cls.CUPOM_FISCAL
+        if "comprovante" in s or "recibo" in s:
+            return cls.COMPROVANTE
+        if "extrato" in s:
+            return cls.EXTRATO
+        if "nota" in s or "danfe" in s or "nf" in s:
+            return cls.NOTA_FISCAL
+        if "boleto" in s:
+            return cls.BOLETO
+        if "statement" in s:
+            return cls.STATEMENT
+        if "invoice" in s:
+            return cls.INVOICE
+        if "receipt" in s:
+            return cls.RECEIPT
+        return cls.UNKNOWN
 
 
 class Document(Base):
@@ -53,7 +91,7 @@ class Document(Base):
     mime_type: Mapped[str] = mapped_column(String(100))
     original_filename: Mapped[str] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(20), default=DocumentStatus.PENDING)
-    document_type: Mapped[str | None] = mapped_column(String(20))
+    document_type: Mapped[str | None] = mapped_column(String(50))
     error_message: Mapped[str | None] = mapped_column(Text)
     # Código estável do catálogo (ai_failures.py); o app decide por ele, não pelo texto
     error_code: Mapped[str | None] = mapped_column(String(50))

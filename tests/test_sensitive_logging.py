@@ -271,6 +271,7 @@ async def test_classifier_never_logs_raw_response(fails, monkeypatch):
         "Client",
         lambda **kwargs: SimpleNamespace(models=SimpleNamespace(generate_content=generate)),
     )
+    monkeypatch.setattr(settings, "vision_provider", "google")
     monkeypatch.setattr(settings, "google_api_key", TOKEN)
     result = await DocumentClassifier()._classify_by_llm(MERCHANT)
     assert result == DocumentType.UNKNOWN
