@@ -444,7 +444,8 @@ class DocumentService:
         existing = await self._find_by_hash(user, file_hash)
         if existing is None:
             return None
-        if not force:
+        # documento que falhou não tem nada para mostrar: reenviar é tentar de novo
+        if not force and existing.status != DocumentStatus.FAILED:
             raise self._duplicate_error(existing)
         if existing.status == DocumentStatus.PROCESSING:
             raise HTTPException(

@@ -44,6 +44,7 @@ class DocumentType(str, Enum):
     EXTRATO_BANCARIO = "extrato_bancario"
     NOTA_FISCAL = "nota_fiscal"
     BOLETO = "boleto"
+    NAO_FINANCEIRO = "nao_financeiro"
 
     @classmethod
     def from_string(cls, val: Any) -> "DocumentType":

@@ -45,6 +45,16 @@ UNREADABLE_DOCUMENT = Failure(
     "unreadable_document",
     "Não conseguimos ler este arquivo. Tente uma foto com mais luz ou o PDF da fatura.",
 )
+NOT_FINANCIAL_DOCUMENT = Failure(
+    "not_financial_document",
+    "Isso não parece uma fatura, nota fiscal ou cobrança. Envie a fatura do cartão, a "
+    "nota ou o boleto, ou lance a despesa manualmente.",
+)
+NO_ITEMS_FOUND = Failure(
+    "no_items_found",
+    "Não encontramos lançamentos neste documento. Confira se o arquivo está completo e "
+    "legível, ou lance as despesas manualmente.",
+)
 PASSWORD_REQUIRED = Failure(
     "password_required",
     "Este PDF tem senha. Envie de novo informando a senha da fatura.",
@@ -65,6 +75,8 @@ CATALOG = {
         AI_BUSY,
         AI_UNAVAILABLE,
         UNREADABLE_DOCUMENT,
+        NOT_FINANCIAL_DOCUMENT,
+        NO_ITEMS_FOUND,
         PASSWORD_REQUIRED,
         FILE_MISSING,
         PROCESSING_TIMEOUT,
@@ -91,6 +103,9 @@ def classify(error: BaseException | str | None) -> Failure:
         return UNREADABLE_DOCUMENT
     if isinstance(error, TimeoutError):
         return AI_BUSY
+    # o pipeline devolve o código do catálogo quando a própria leitura decidiu o motivo
+    if isinstance(error, str) and error in CATALOG:
+        return CATALOG[error]
     text = error if isinstance(error, str) else f"{type(error).__name__} {error}"
     code = getattr(error, "code", None) or getattr(error, "status_code", None)
     if code == 429 or _QUOTA.search(text):

@@ -1,5 +1,7 @@
 """Schemas Pydantic para extracao de faturas"""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -95,14 +97,34 @@ class CardInfo(BaseModel):
 class FaturaExtracao(BaseModel):
     """Resultado da extracao de uma fatura de cartao."""
 
-    document_type: str = Field(
-        description="Tipo: fatura_cartao, cupom_fiscal, comprovante, extrato"
+    document_type: Literal[
+        "fatura_cartao",
+        "cupom_fiscal",
+        "nota_fiscal",
+        "boleto",
+        "comprovante",
+        "comprovante_pix",
+        "nao_financeiro",
+    ] = Field(
+        description="Tipo do documento. nao_financeiro quando NAO for fatura de cartao, nota "
+        "ou cupom fiscal, boleto/conta a pagar ou comprovante de pagamento"
+    )
+    rejection_reason: str | None = Field(
+        default=None,
+        description="So quando document_type=nao_financeiro: o que o documento e, em uma frase "
+        "curta em portugues (ex: 'tela de carrinho de compras sem pagamento')",
     )
     card_info: CardInfo | None = Field(
         default=None,
         description="Informacoes do cartao. OBRIGATORIO se document_type=fatura_cartao",
     )
-    items: list[FaturaItem] = Field(description="Lista de transacoes/itens extraidos")
+    total_amount: float | None = Field(
+        default=None,
+        description="Valor total pago ou a pagar (nota, cupom, boleto, comprovante)",
+    )
+    items: list[FaturaItem] = Field(
+        description="Lista de transacoes/itens extraidos. Vazia se nao_financeiro"
+    )
 
 
 # Schema simplificado para document_annotation do Mistral OCR
