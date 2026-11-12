@@ -360,11 +360,55 @@ async def update_credit_card(
                 continue
             setattr(account, field, update_data[field])
 
+    new_ownership = update_data.get("ownership_type")
+    if new_ownership is not None:
+        new_ownership = getattr(new_ownership, "value", new_ownership)
+    if new_ownership and new_ownership != account.ownership_type:
+        await _change_card_ownership(
+            db, current_user, card, account, new_ownership, data.apply_to_open_invoices
+        )
+
     await db.commit()
     await db.refresh(card)
     await db.refresh(account)
 
     return _to_response(card, account)
+
+
+async def _change_card_ownership(
+    db, user, card: CreditCard, account: Account, ownership: str, apply_to_open: bool
+) -> None:
+    """
+    Cartão da casa: as compras dele passam a entrar na divisão da família.
+    Só o dono do cartão muda (é ele quem paga a fatura). Com apply_to_open, as compras
+    das faturas ainda não pagas acompanham; faturas pagas ficam como estavam.
+    """
+    if card.user_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Só quem cadastrou o cartão decide se ele é da casa",
+        )
+    if ownership == "household":
+        await validate_create_permission(db, user, "household")
+    account.ownership_type = ownership
+
+    if not apply_to_open:
+        return
+    open_invoices = select(CreditCardInvoice.id).where(
+        CreditCardInvoice.credit_card_id == card.id,
+        CreditCardInvoice.status != InvoiceStatus.PAID.value,
+    )
+    await db.execute(
+        update(Transaction)
+        .where(
+            _card_transactions(card),
+            Transaction.user_id == card.user_id,
+            Transaction.type == "expense",
+            Transaction.invoice_id.in_(open_invoices),
+        )
+        .values(ownership_type=ownership)
+        .execution_options(synchronize_session=False)
+    )
 
 
 def _card_transactions(card: CreditCard):

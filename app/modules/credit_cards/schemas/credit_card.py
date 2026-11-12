@@ -60,6 +60,10 @@ class CreditCardUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=100)
     color: str | None = None
     icon: str | None = None
+    # Cartão da casa: as compras dele entram na divisão da família. Só o dono do cartão muda
+    ownership_type: OwnershipType | None = None
+    # Ao virar (ou deixar de ser) da casa, leva junto as compras das faturas ainda não pagas
+    apply_to_open_invoices: bool = False
 
 
 class CreditCardResponse(CreditCardBase):
