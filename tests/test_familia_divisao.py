@@ -258,3 +258,13 @@ def test_transferencias_minimas_entre_tres():
         (2, 1, Decimal("100.00")),
         (3, 1, Decimal("50.00")),
     ]
+
+
+async def test_lista_mostra_quem_lancou_a_despesa_da_casa(client, db_session, no_email):
+    ana, _, _, bruno_h = await _casal(client, db_session)
+    await _expense(db_session, ana, "80.00")
+
+    body = (await client.get("/api/v1/transactions", headers=bruno_h)).json()
+
+    shared = [t for t in body["items"] if t["ownership_type"] == "household"]
+    assert [t["user_id"] for t in shared] == [ana.id]

@@ -139,6 +139,8 @@ class TransactionUpdate(BaseModel):
 
 class TransactionResponse(TransactionBase):
     id: int
+    # quem lançou: na família, mostra quem pagou cada despesa da casa
+    user_id: int | None = None
     account_id: int
     category_id: int | None
     merchant_id: int | None
