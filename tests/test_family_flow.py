@@ -75,4 +75,5 @@ async def test_criar_familia_e_convidar_membro(client, db_session, monkeypatch):
     invite_data = invite_res.json()
     assert invite_data["email"] == "esposa@example.com"
     assert invite_data["token"]
+    assert invite_data["code"] == invite_data["token"]
     assert invite_data["invite_url"].endswith(f"/invite/{invite_data['token']}")

@@ -86,8 +86,9 @@ class FamilyInviteResponse(BaseModel):
     email: str
     status: str
     expires_at: datetime
-    invite_url: str | None = None
+    code: str | None = None
     token: str | None = None
+    invite_url: str | None = None
 
 
 # ========== Pending Invitations ==========

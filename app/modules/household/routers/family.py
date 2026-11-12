@@ -293,6 +293,7 @@ async def invite_member(
         to_email=data.email,
         invite_url=invite_url,
         inviter_name=current_user.name,
+        invite_code=invitation.token,
     )
 
     if not email_sent:
@@ -308,8 +309,9 @@ async def invite_member(
         email=invitation.email,
         status=status_value,
         expires_at=invitation.expires_at,
-        invite_url=invite_url,
+        code=invitation.token,
         token=invitation.token,
+        invite_url=invite_url,
     )
 
 

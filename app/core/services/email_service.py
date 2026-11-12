@@ -222,9 +222,18 @@ class EmailService:
             logger.error("send_email_failed error_type=%s", type(e).__name__)
             return False
 
-    def send_invitation(self, to_email: str, invite_url: str, inviter_name: str) -> bool:
+    def send_invitation(
+        self,
+        to_email: str,
+        invite_url: str,
+        inviter_name: str,
+        invite_code: str | None = None,
+    ) -> bool:
         """Envia email de convite"""
         subject = "Você foi convidado para o Koin"
+        code_str = invite_code or (
+            invite_url.split("/invite/")[-1] if "/invite/" in invite_url else ""
+        )
 
         # Versão texto puro (importante para entregabilidade)
         text_content = f"""
@@ -232,20 +241,33 @@ Você foi convidado para o Koin!
 
 {inviter_name} convidou você para acessar o Koin — seu assistente inteligente de finanças pessoais.
 
-Com o Koin você pode:
-- Importar faturas automaticamente com IA
-- Controlar gastos e criar orçamentos
-- Definir e acompanhar metas financeiras
-- Receber insights personalizados
+Seu código de convite:
+{code_str}
 
-Clique no link abaixo para criar sua conta:
-{invite_url}
+Para acessar:
+1. Abra o aplicativo Koin
+2. Na tela de login, toque em "Tenho um convite"
+3. Cole o código acima para concluir o cadastro.
 
 Este convite expira em 48 horas.
 
 --
 Koin — finanças claras. decisões firmes.
 """
+
+        code_block_html = (
+            f"""
+                <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">
+                    <p style="margin: 0 0 6px; font-size: 13px; color: #64748b; text-transform: uppercase; font-weight: 600;">Seu código de convite</p>
+                    <code style="font-size: 20px; font-weight: 700; color: #6d28d9; letter-spacing: 1px;">{code_str}</code>
+                </div>
+                <p style="text-align: center; font-size: 14px; color: #4b5563; margin-bottom: 24px;">
+                    Abra o app Koin no seu celular, toque em <strong>"Tenho um convite"</strong> e insira o código acima.
+                </p>
+            """
+            if code_str
+            else ""
+        )
 
         html_content = f"""
 <!DOCTYPE html>
@@ -281,9 +303,7 @@ Koin — finanças claras. decisões firmes.
                     </ul>
                 </div>
 
-                <div class="button-container">
-                    <a href="{invite_url}" class="button">Criar minha conta</a>
-                </div>
+                {code_block_html}
 
                 <div style="text-align: center;">
                     <span class="warning">
