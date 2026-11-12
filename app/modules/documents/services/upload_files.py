@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import io
+import unicodedata
 from dataclasses import dataclass
+from urllib.parse import unquote
 
 import filetype
 from fastapi import HTTPException, UploadFile, status
@@ -107,6 +109,35 @@ def _spreadsheet(content: bytes, filename: str | None) -> tuple[str, str] | None
     return None
 
 
+_PDF_MAGIC = b"%PDF-"
+# A especificação aceita o cabeçalho do PDF no primeiro KB; leitores também ignoram
+# preenchimento nulo antes dele (há faturas do Inter com centenas de KB de zeros na frente).
+_PDF_HEADER_WINDOW = 1024
+
+
+def pdf_start(content: bytes) -> int | None:
+    """Posição do `%PDF-` quando ele não está no byte 0, mas o PDF é aproveitável."""
+    index = content.find(_PDF_MAGIC)
+    if index <= 0:
+        return None
+    if index <= _PDF_HEADER_WINDOW or not content[:index].strip(b"\x00\t\n\r\f "):
+        return index
+    return None
+
+
+def clean_filename(filename: str | None) -> str:
+    """O app manda o nome com %20 e acentos escapados; guarda o nome legível."""
+    if not filename:
+        return "arquivo"
+    name = (
+        unicodedata.normalize("NFC", unquote(filename))
+        .replace("\\", "/")
+        .rsplit("/", 1)[-1]
+        .strip()
+    )
+    return name[:255] or "arquivo"
+
+
 def detect_type(content: bytes, filename: str | None, *, images_only: bool) -> tuple[str, str]:
     if not content:
         raise _unsupported(images_only)
@@ -120,6 +151,9 @@ def detect_type(content: bytes, filename: str | None, *, images_only: bool) -> t
         mapped = _BY_EXTENSION.get(kind.extension)
         if mapped is not None:
             return mapped
+
+    if not images_only and pdf_start(content) is not None:
+        return _BY_EXTENSION["pdf"]
 
     if not images_only:
         sheet = _spreadsheet(content, filename)
@@ -191,6 +225,10 @@ async def _read_limited(file: UploadFile) -> tuple[bytes, int]:
 async def prepare_upload(file: UploadFile, *, images_only: bool = False) -> PreparedUpload:
     content, original_size = await _read_limited(file)
     extension, mime = detect_type(content, file.filename, images_only=images_only)
+    if mime == "application/pdf":
+        start = pdf_start(content)
+        if start is not None:
+            content = content[start:]
     if mime.startswith("image/"):
         try:
             content, extension, mime = await asyncio.to_thread(
@@ -205,6 +243,6 @@ async def prepare_upload(file: UploadFile, *, images_only: bool = False) -> Prep
         content=content,
         extension=extension,
         mime_type=mime,
-        original_filename=file.filename or "arquivo",
+        original_filename=clean_filename(file.filename),
         original_size=original_size,
     )

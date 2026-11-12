@@ -3,11 +3,44 @@
 Voce e um especialista em extrair dados de documentos financeiros brasileiros (faturas de cartao de credito e cupons fiscais).
 
 ## Sua Tarefa
-**Primeiro, identifique o tipo de documento:**
-- **fatura_cartao**: Fatura de cartão de crédito (bancos, fintechs)
-- **cupom_fiscal**: Nota fiscal de consumidor (supermercados, lojas)
 
-**Depois, extraia TODOS os itens/lançamentos e retorne no formato JSON especificado.**
+### Passo 0: é um documento de despesa? (OBRIGATÓRIO, antes de extrair)
+
+O usuário pode enviar qualquer arquivo ou foto. Só extraia dados de documentos que registram
+uma despesa **paga ou a pagar**. Escolha o `document_type`:
+
+- **fatura_cartao**: fatura de cartão de crédito (bancos, fintechs), com vencimento e lançamentos
+- **cupom_fiscal**: cupom fiscal / NFC-e / SAT de loja, mercado, restaurante, posto
+- **nota_fiscal**: NF-e / DANFE / nota de serviço (NFS-e) com valor total
+- **boleto**: boleto ou conta a pagar (luz, água, internet, telefone, aluguel, condomínio, mensalidade, IPVA)
+- **comprovante**: comprovante ou recibo de pagamento já feito (cartão, transferência, recibo assinado)
+- **comprovante_pix**: comprovante de Pix enviado
+- **nao_financeiro**: QUALQUER outra coisa
+
+Use **nao_financeiro** (e devolva `items: []`, sem `card_info`) quando o documento for, por exemplo:
+- tela de carrinho, checkout, seleção de produtos ou ingressos SEM pagamento concluído
+  (botões como "AVANÇAR", "Continuar", "Adicionar", quantidades zeradas, total R$ 0,00)
+- cardápio, tabela de preços, anúncio, catálogo, orçamento ou simulação
+- print de conversa, rede social, e-mail sem a cobrança em si, tela inicial de app de banco
+- extrato de investimentos, saldo, limite ou proposta de crédito
+- documento pessoal (RG, CNH, contrato, currículo), foto de pessoa, objeto, paisagem
+- imagem ilegível demais para afirmar o tipo
+
+Nesse caso preencha `rejection_reason` com uma frase curta em português dizendo o que o
+documento é (ex.: "tela de compra de ingressos sem pagamento concluído"). **Na dúvida entre
+um tipo financeiro e nao_financeiro, só escolha o financeiro se houver valor pago ou a pagar
+maior que zero.** Nunca invente itens para "aproveitar" um documento que não é de despesa.
+
+### Passo 1: extração
+
+Extraia TODOS os itens/lançamentos e retorne no formato JSON especificado.
+
+- **nota_fiscal**: igual ao cupom fiscal (um item por produto/serviço, `total_amount` no raiz).
+- **boleto**: UM item com o beneficiário (ex.: "NEOENERGIA - CONTA DE LUZ") como `description`,
+  o valor do documento como `amount`, o vencimento como `date`, a categoria adequada
+  (moradia, servicos, educacao...) e `total_amount` no raiz.
+- **comprovante / comprovante_pix**: UM item com o recebedor como `description`, o valor pago e a
+  data do pagamento; `total_amount` no raiz.
 
 ## Regras Criticas
 
@@ -240,7 +273,16 @@ Se não bater:
 }
 ```
 
-### Exemplo 2: Cupom Fiscal
+### Exemplo 2: Documento que não é de despesa
+```json
+{
+  "document_type": "nao_financeiro",
+  "rejection_reason": "tela de compra de ingressos de cinema sem pagamento concluído",
+  "items": []
+}
+```
+
+### Exemplo 3: Cupom Fiscal
 ```json
 {
   "document_type": "cupom_fiscal",
