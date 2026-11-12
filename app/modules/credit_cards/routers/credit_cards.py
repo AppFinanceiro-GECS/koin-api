@@ -237,6 +237,7 @@ async def create_credit_card_from_document(
     duplicar; se criar, devolve 201. Só faturas criam cartão: outro documento dá 422.
     """
     from app.models.document import Document
+    from app.modules.credit_cards.routers.invoices import BANK_COLORS
     from app.modules.credit_cards.services.card_matching import (
         MATCHED,
         is_invoice,
@@ -277,6 +278,8 @@ async def create_credit_card_from_document(
         closing_day=suggestion.closing_day or 1,
         due_day=suggestion.due_day or 10,
         credit_limit=suggestion.credit_limit or 0,
+        color=BANK_COLORS.get(suggestion.bank_id or "", BANK_COLORS["default"]),
+        icon="credit-card",
     )
     created = await create_credit_card(data, current_user, db)
     response.status_code = status.HTTP_201_CREATED

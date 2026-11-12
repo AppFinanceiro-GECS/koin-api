@@ -829,7 +829,10 @@ async def detect_card_from_document(
     current_user: CurrentUser,
     db: DbSession,
 ):
-    """Detecta cartao de credito baseado nos dados extraidos do documento"""
+    """
+    Detecta cartao de credito baseado nos dados extraidos do documento.
+    Obsoleto: use card_match em GET /documents/{id}, que considera a familia.
+    """
     service = InvoiceService(db)
     cards = await service.detect_card_from_document(current_user, document_data)
 
@@ -929,6 +932,8 @@ async def create_card_from_invoice(
     Cria um novo cartao de credito a partir dos dados extraidos de uma fatura.
 
     Util quando o usuario envia uma fatura de um cartao que ainda nao esta cadastrado.
+    Obsoleto: use POST /credit-cards/from-document/{document_id}, que le os dados
+    do proprio documento e nao duplica cartao.
     O sistema extrai as informacoes do PDF e usa este endpoint para criar o cartao.
     """
     from app.models.credit_card import CreditCard

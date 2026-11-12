@@ -168,6 +168,7 @@ async def test_cadastrar_cartao_pela_fatura_nao_duplica(auth, db_session, test_u
     assert created["last_four_digits"] == "9876"
     assert (created["closing_day"], created["due_day"]) == (5, 12)
     assert created["credit_limit"] == 5000.0
+    assert created["account_color"] == "#820AD1"
     assert second.status_code == 200
     assert second.json()["id"] == created["id"]
     assert await db_session.scalar(select(func.count(CreditCard.id))) == 1
