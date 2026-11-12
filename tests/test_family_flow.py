@@ -23,7 +23,10 @@ async def test_get_family_context_sem_familia_retorna_403(client, db_session):
 
     response = await client.get("/api/v1/family/context", headers=headers)
     assert response.status_code == 403
-    assert "família" in response.json()["detail"].lower() or "licença" in response.json()["detail"].lower()
+    assert (
+        "família" in response.json()["detail"].lower()
+        or "licença" in response.json()["detail"].lower()
+    )
 
 
 @pytest.mark.asyncio
