@@ -40,7 +40,7 @@ credit_cards/
 | POST | `` | Cria novo cartao (com conta associada) |
 | GET | `/{card_id}` | Retorna cartao especifico |
 | PATCH | `/{card_id}` | Atualiza cartao |
-| DELETE | `/{card_id}` | Remove cartao e conta associada |
+| DELETE | `/{card_id}` | Remove cartao e conta associada. Com lançamentos, faturas ou parcelamentos devolve 409 (`credit_card_has_linked_data`, com as contagens); `?force=true` apaga tudo |
 | POST | `/{card_id}/project-recurring` | Projeta recorrentes para faturas futuras |
 
 ### Router Invoices (`/invoices`)
