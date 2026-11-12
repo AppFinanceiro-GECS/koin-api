@@ -39,6 +39,11 @@ household/
 | DELETE | `/invitations/{invitation_id}` | Cancela convite pendente |
 | POST | `/invitations/{invitation_id}/resend` | Reenvia email de convite |
 | DELETE | `/members/{member_id}` | Remove membro da familia (apenas owner) |
+| POST | `/join` | Entra na familia com o codigo do convite, para quem ja tem conta |
+| GET | `/split?year=&month=` | Divisao das despesas da casa: quem pagou, parte de cada um, quem deve a quem |
+| POST | `/settlements` | Registra um acerto entre membros ("Acertar") |
+| DELETE | `/settlements/{id}` | Desfaz um acerto |
+| PUT | `/shares` | Parte de cada membro (somam 100; vazio = igual), so o dono |
 
 ## Uso
 ```python

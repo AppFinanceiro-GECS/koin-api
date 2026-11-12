@@ -4,7 +4,7 @@ Schemas de household: membros da familia, contexto e convites.
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.core.email_address import NormalizedEmail
 from app.models.household import HouseholdRole, OwnershipType
@@ -34,6 +34,8 @@ class HouseholdMemberResponse(HouseholdMemberBase):
     role: str
     joined_at: datetime
     invited_by_id: int | None = None
+    # parte nas despesas da casa (%); nulo = divisão igual
+    share_percent: float | None = None
 
     class Config:
         from_attributes = True
@@ -111,3 +113,92 @@ class OwnershipUpdate(BaseModel):
     """Update para ownership_type de um recurso"""
 
     ownership_type: OwnershipType = OwnershipType.PERSONAL
+
+
+# ========== Divisão das despesas da casa ==========
+
+
+class FamilySplitMember(BaseModel):
+    member_id: int
+    user_id: int
+    name: str
+    is_me: bool
+    share_percent: float  # parte usada no cálculo (igual ou definida)
+    paid: float  # despesas da casa que este membro pagou no mês
+    expenses_count: int
+    fair_share: float  # quanto caberia a ele pela parte
+    settled_out: float  # acertos que ele já pagou
+    settled_in: float  # acertos que ele já recebeu
+    balance: float  # > 0 tem a receber; < 0 tem a pagar
+
+
+class FamilyTransfer(BaseModel):
+    """Transferência sugerida para zerar os saldos"""
+
+    from_user_id: int
+    from_name: str
+    to_user_id: int
+    to_name: str
+    amount: float
+
+
+class FamilyCategoryTotal(BaseModel):
+    name: str
+    amount: float
+
+
+class FamilySettlementResponse(BaseModel):
+    id: int
+    from_user_id: int
+    to_user_id: int
+    amount: float
+    note: str | None = None
+    created_at: datetime
+
+
+class FamilySplitResponse(BaseModel):
+    """
+    Quem pagou o quê nas despesas da casa no mês e quem deve a quem.
+
+    split_mode: equal (partes iguais) ou custom (porcentagens definidas pelo dono,
+    por exemplo proporcionais à renda). transfers vazio = mês acertado.
+    """
+
+    year: int
+    month: int
+    total: float
+    split_mode: str
+    is_settled: bool
+    members: list[FamilySplitMember]
+    transfers: list[FamilyTransfer]
+    categories: list[FamilyCategoryTotal]
+    settlements: list[FamilySettlementResponse]
+
+
+class FamilySettlementCreate(BaseModel):
+    """Registra um acerto ("Acertar"): from_user pagou to_user por fora (Pix, dinheiro)"""
+
+    to_user_id: int
+    amount: float = Field(gt=0, le=1_000_000)
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+    # quem pagou; padrão = quem registra
+    from_user_id: int | None = None
+    note: str | None = Field(default=None, max_length=200)
+
+
+class FamilyShare(BaseModel):
+    member_id: int
+    share_percent: float = Field(ge=0, le=100)
+
+
+class FamilySharesUpdate(BaseModel):
+    """Partes de cada membro (somam 100). Lista vazia volta para a divisão igual"""
+
+    shares: list[FamilyShare]
+
+
+class FamilyJoinRequest(BaseModel):
+    """Entrar numa família com o código do convite, já tendo conta no Koin"""
+
+    code: str = Field(min_length=6, max_length=64)
