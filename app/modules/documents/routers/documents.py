@@ -17,6 +17,26 @@ from app.modules.documents.services.document_service import DocumentService, Pas
 router = APIRouter()
 
 
+async def build_card_match(db, user, card_info, document_type):
+    """De qual cartão é o documento: reconhecido pelo final e pelo banco"""
+    from app.modules.credit_cards.services.card_matching import match_card
+    from app.modules.documents.schemas.document import (
+        CardMatchResponse,
+        CardSuggestionResponse,
+    )
+
+    match = await match_card(db, user, card_info or None, document_type)
+    return CardMatchResponse(
+        status=match.status,
+        credit_card_id=match.credit_card_id,
+        credit_card_name=match.credit_card_name,
+        candidate_ids=match.candidate_ids,
+        suggestion=CardSuggestionResponse(**match.suggestion.__dict__)
+        if match.suggestion
+        else None,
+    )
+
+
 @router.post("", response_model=DocumentResponse, status_code=201)
 async def upload_document(
     current_user: CurrentUser,
@@ -246,6 +266,10 @@ async def get_document(
                 credit_used=card_info.get("credit_used"),
                 credit_available=card_info.get("credit_available"),
             )
+
+        response.card_match = await build_card_match(
+            db, current_user, card_info, document.document_type
+        )
 
         # Payment info
         payment_info = extraction_data.get("payment_info")

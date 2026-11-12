@@ -31,6 +31,10 @@ from app.modules.credit_cards.services.expected_invoice_service import (
     ExpectedInvoiceService,
 )
 from app.modules.credit_cards.services.invoice_service import InvoiceService
+from app.modules.credit_cards.services.outlook_service import (
+    InvoiceOutlookResponse,
+    build_outlook,
+)
 
 router = APIRouter()
 
@@ -211,6 +215,20 @@ class InvoiceOverviewResponse(BaseModel):
     items: list[ExpectedInvoiceItem]
     total_cards: int
     pending_count: int  # quantos estao em estado not_created ou created_no_document
+
+
+@router.get("/outlook", response_model=InvoiceOutlookResponse)
+async def invoices_outlook(
+    current_user: CurrentUser,
+    db: DbSession,
+    months: int = Query(6, ge=1, le=24, description="Quantos meses, a partir do atual"),
+    scope: str = Query("me", pattern="^(me|family)$"),
+):
+    """
+    Parcelas já compradas que caem em cada fatura dos próximos meses.
+    scope=family soma também as compras compartilhadas da família.
+    """
+    return await build_outlook(db, current_user, months, scope, today_br())
 
 
 @router.get("/overview", response_model=InvoiceOverviewResponse)
