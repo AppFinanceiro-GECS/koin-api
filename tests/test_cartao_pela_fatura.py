@@ -212,6 +212,51 @@ async def test_projecao_soma_parcelas_no_mes_da_fatura(db_session, test_user):
     assert outlook.total == 300.0
 
 
+async def test_projecao_separa_por_cartao(db_session, test_user):
+    roxo = await _card(db_session, test_user, "Roxinho", digits="9876", bank_id="nubank", closing=5)
+    laranja = await _card(
+        db_session, test_user, "Laranjinha", digits="1234", bank_id="inter", closing=25
+    )
+    for card, desc, valor, n in ((roxo, "Geladeira", "100", 3), (laranja, "Fone", "40", 2)):
+        db_session.add(
+            InstallmentSeries(
+                user_id=test_user.id,
+                description=desc,
+                merchant_name="Loja",
+                total_amount=Decimal(valor) * n,
+                installment_amount=Decimal(valor),
+                installment_count=n,
+                first_installment_date=date(2026, 11, 10),
+                account_id=card.account_id,
+                credit_card_id=card.id,
+            )
+        )
+    await db_session.flush()
+
+    outlook = await build_outlook(db_session, test_user, 3, "me", date(2026, 11, 1))
+
+    # o cartão que mais pesa vem primeiro
+    assert [(c.credit_card_id, c.bank_id, c.total) for c in outlook.cards] == [
+        (roxo.id, "nubank", 200.0),  # a 3ª parcela cai em fevereiro, fora da janela
+        (laranja.id, "inter", 80.0),
+    ]
+    # Roxinho fecha dia 5: dia 10 cai na fatura de dezembro. Laranjinha fecha dia 25: novembro
+    nov, dez, jan = outlook.months
+    assert [(b.credit_card_id, b.total) for b in nov.by_card] == [(laranja.id, 40.0)]
+    assert [(b.credit_card_id, b.total) for b in dez.by_card] == [
+        (roxo.id, 100.0),
+        (laranja.id, 40.0),
+    ]
+    assert dez.total == sum(b.total for b in dez.by_card)
+    item = dez.by_card[0].items[0]
+    assert (item.description, item.installment_number, item.installment_count) == (
+        "Geladeira",
+        1,
+        3,
+    )
+    assert [(b.credit_card_id, b.total) for b in jan.by_card] == [(roxo.id, 100.0)]
+
+
 async def test_projecao_pela_rota(auth):
     response = await auth.get("/api/v1/invoices/outlook", params={"months": 3})
 
