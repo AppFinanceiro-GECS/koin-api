@@ -677,6 +677,14 @@ class TransactionService:
                         detail=f"Transação já existe: {data.merchant_name} - R$ {data.amount:.2f} em {data.date.strftime('%d/%m/%Y')}",
                     )
 
+        # Conta (ou cartão) da casa: o que entra nela é da família e vai para a divisão
+        if data.account_id and data.ownership_type != "household":
+            account_ownership = await self.db.scalar(
+                select(Account.ownership_type).where(Account.id == data.account_id)
+            )
+            if account_ownership == "household":
+                data.ownership_type = "household"
+
         merchant_id = None
         if data.merchant_name:
             merchant_id = await self._get_or_create_merchant(data.merchant_name)
