@@ -3,15 +3,15 @@
 # (make lock faz o mesmo). Instale sempre pelo requirements.txt.
 
 # Core
-fastapi==0.148.0
-starlette==1.9.0
+fastapi==0.162.5
+starlette==1.10.0
 uvicorn[standard]==0.54.0
 python-multipart==0.0.32
 python-dotenv==1.2.4
 
 # Database
 sqlalchemy==2.1.1
-asyncpg==0.31.0
+asyncpg==0.32.0
 aiosqlite==0.22.1
 greenlet>=3.0.0
 alembic==1.20.0
@@ -41,11 +41,11 @@ pyzbar>=0.1.9
 httpx>=0.28.1,<1.0.0
 
 # Erros (#27): só ativa com SENTRY_DSN
-sentry-sdk==2.74.0
+sentry-sdk==2.75.0
 
 # Testing
-pytest==9.1.1
-pytest-asyncio==1.4.0
+pytest==9.2.0
+pytest-asyncio==1.5.0
 freezegun==1.5.5
 pytest-cov==7.1.0
 
@@ -54,7 +54,7 @@ python-dateutil==2.9.0.post0
 rapidfuzz>=3.14.6  # Fuzzy string matching for duplicate detection
 
 # Google AI
-google-genai>=2.25.0
+google-genai>=3.3.0
 
 # Mistral AI (OCR + LLM)
 mistralai>=1.0.0
