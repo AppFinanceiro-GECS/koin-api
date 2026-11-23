@@ -1,5 +1,6 @@
 """Serviço de envio de emails via SMTP"""
 
+import html
 import logging
 import smtplib
 import ssl
@@ -401,6 +402,69 @@ Koin — finanças claras. decisões firmes.
                     <p class="footer-links">
                         © 2025 Koin
                     </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        return self.send_email(to_email, subject, html_content, text_content)
+
+    def send_event_verification_code(self, to_email: str, user_name: str, code: str) -> bool:
+        """Código de 6 dígitos do cadastro no evento (vale 30 minutos)."""
+        subject = f"{code} é o seu código do Koin"
+        name = html.escape(user_name)
+
+        text_content = f"""
+Olá {user_name},
+
+Seu código para confirmar o e-mail no Koin é: {code}
+
+Digite o código no app. Ele vale por 30 minutos.
+
+Não foi você? Ignore este e-mail.
+
+--
+Koin — finanças claras. decisões firmes.
+"""
+
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {EMAIL_BASE_STYLE}
+</head>
+<body>
+    <div class="wrapper">
+        <div class="container">
+            <div class="card">
+                <div class="header">
+                    <div class="logo-text">Koin</div>
+                    <p class="slogan">finanças claras. decisões firmes.</p>
+                </div>
+
+                <h2>Confirme seu e-mail</h2>
+
+                <p>Olá <span class="highlight">{name}</span>, digite este código no app:</p>
+
+                <div style="text-align: center; margin: 24px 0;">
+                    <code style="font-size: 32px; font-weight: 700; color: #6d28d9; letter-spacing: 8px;">{code}</code>
+                </div>
+
+                <div style="text-align: center;">
+                    <span class="warning">O código vale por 30 minutos</span>
+                </div>
+
+                <div class="info-box">
+                    Não foi você? Ignore este e-mail.
+                </div>
+
+                <div class="footer">
+                    <div class="footer-logo-text">Koin</div>
+                    <p class="footer-slogan">finanças claras. decisões firmes.</p>
                 </div>
             </div>
         </div>

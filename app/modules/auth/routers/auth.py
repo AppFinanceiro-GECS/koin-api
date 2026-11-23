@@ -15,6 +15,7 @@ from app.core.services.email_service import email_service
 from app.core.utils import utc_now
 from app.models import Invitation, InvitationStatus, License, User
 from app.models.household import HouseholdMember, HouseholdRole
+from app.modules.auth.routers.event_signup import router as event_signup_router
 from app.modules.auth.schemas.auth import LoginRequest, RefreshRequest, Token
 from app.modules.auth.schemas.invitation import InviteRegister, InviteValidation
 from app.modules.auth.schemas.user import UserResponse
@@ -315,3 +316,8 @@ async def reset_password(
     # Fazer login automático
     auth_service = AuthService(db)
     return await auth_service.login(user_email, data.password)
+
+
+# ========== Cadastro pelo código de evento ==========
+
+router.include_router(event_signup_router)
