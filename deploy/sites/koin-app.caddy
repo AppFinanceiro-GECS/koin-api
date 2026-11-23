@@ -3,6 +3,12 @@
 # Ao trocar de domínio, troque o endereço abaixo.
 app.144-22-232-63.sslip.io {
 	encode gzip zstd
+
+	# QR do banner do stand (28/11): abre o cadastro na versão web do app do evento.
+	# O banner fica impresso; para mudar o destino, troque só esta linha.
+	redir /stand https://superappkoin-koin.expo.app/signup 302
+	redir /stand/ https://superappkoin-koin.expo.app/signup 302
+
 	root * /etc/caddy/sites/koin-app
 	header Cache-Control "no-cache"
 	file_server
