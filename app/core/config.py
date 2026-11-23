@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from functools import lru_cache
 
@@ -102,6 +103,16 @@ class Settings(BaseSettings):
 
     # Sentry (#27): vazio desliga
     sentry_dsn: str | None = None
+
+    # Cadastro pelo código de um evento (stand). Sem código, a rota responde 404.
+    event_signup_code: str | None = None
+    event_signup_source: str = "evento"  # vai para event_signups.source
+    event_signup_ends_at: datetime | None = None  # UTC; depois disso o código para de valer
+
+    @field_validator("event_signup_code", "event_signup_ends_at", mode="before")
+    @classmethod
+    def empty_event_setting(cls, value):
+        return None if value == "" else value
 
     # Push pelo Expo (#43): opcional, só se o projeto EAS exigir token de acesso
     expo_access_token: str | None = None

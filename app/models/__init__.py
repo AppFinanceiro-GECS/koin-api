@@ -34,6 +34,7 @@ from .credit_card import CreditCard, PointsProgram
 from .credit_card_invoice import CreditCardInvoice, InvoiceStatus
 from .debt import Debt, DebtPayment, DebtStatus, DebtType, PayoffStrategy
 from .document import Document, DocumentExtraction
+from .event_signup import EventSignup
 from .gamification import (
     BadgeCategory,
     BadgeDefinition,
@@ -128,6 +129,7 @@ __all__ = [
     "DebtStatus",
     "PayoffStrategy",
     "Invitation",
+    "EventSignup",
     "InvitationStatus",
     "RecurringTransaction",
     "RecurrenceFrequency",
