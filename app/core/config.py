@@ -108,8 +108,12 @@ class Settings(BaseSettings):
     event_signup_code: str | None = None
     event_signup_source: str = "evento"  # vai para event_signups.source
     event_signup_ends_at: datetime | None = None  # UTC; depois disso o código para de valer
+    # Código do time para testar o fluxo: não expira e marca source="dev" (fica fora do export)
+    event_signup_dev_code: str | None = None
 
-    @field_validator("event_signup_code", "event_signup_ends_at", mode="before")
+    @field_validator(
+        "event_signup_code", "event_signup_ends_at", "event_signup_dev_code", mode="before"
+    )
     @classmethod
     def empty_event_setting(cls, value):
         return None if value == "" else value

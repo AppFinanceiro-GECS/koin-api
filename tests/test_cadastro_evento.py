@@ -20,6 +20,7 @@ def evento(monkeypatch):
     monkeypatch.setattr(settings, "event_signup_code", "KOIN-STAND")
     monkeypatch.setattr(settings, "event_signup_source", "stand-2026-11-28")
     monkeypatch.setattr(settings, "event_signup_ends_at", None)
+    monkeypatch.setattr(settings, "event_signup_dev_code", None)
     monkeypatch.setattr(
         event_module.email_service,
         "send_event_verification_code",
@@ -57,6 +58,24 @@ async def test_evento_encerrado(client, evento, monkeypatch):
     monkeypatch.setattr(settings, "event_signup_ends_at", utc_now() - timedelta(minutes=1))
     response = await client.post(URL, json=_payload())
     assert response.status_code == 404
+
+
+async def test_codigo_do_time_vale_com_evento_encerrado(client, evento, monkeypatch, db_session):
+    monkeypatch.setattr(settings, "event_signup_ends_at", utc_now() - timedelta(minutes=1))
+    monkeypatch.setattr(settings, "event_signup_dev_code", "KOIN-DEV")
+
+    assert (await client.post(URL, json=_payload())).status_code == 400
+    await _signup(client, code="koin-dev")
+
+    signup = await db_session.scalar(select(EventSignup))
+    assert signup.source == "dev"
+
+
+async def test_codigo_do_time_sem_evento_configurado(client, evento, monkeypatch):
+    monkeypatch.setattr(settings, "event_signup_code", None)
+    monkeypatch.setattr(settings, "event_signup_dev_code", "KOIN-DEV")
+    assert (await client.post(URL, json=_payload())).status_code == 400
+    await _signup(client, code="KOIN-DEV")
 
 
 async def test_codigo_errado(client, evento):
@@ -172,6 +191,8 @@ async def test_export_sai_so_quem_aceitou_e_esta_ativo(
     await _signup(client)  # aceitou
     await _signup(client, email="bia@example.com", marketing_opt_in=False)
     await _signup(client, email="caio@example.com")
+    monkeypatch.setattr(settings, "event_signup_dev_code", "KOIN-DEV")
+    await _signup(client, email="dev@example.com", code="KOIN-DEV")  # time: fora do export
     caio = await db_session.scalar(select(User).where(User.email == "caio@example.com"))
     caio.is_active = False
     await db_session.commit()

@@ -46,15 +46,26 @@ EVENT_LICENSE_MAX_USERS = 4
 EVENT_LICENSE_MAX_DOCUMENTS = 10
 
 
+DEV_SOURCE = "dev"
+
+
 def _event_is_open() -> bool:
     if not settings.event_signup_code:
         return False
     return not (settings.event_signup_ends_at and utc_now() > settings.event_signup_ends_at)
 
 
-def _code_matches(typed: str) -> bool:
-    expected = (settings.event_signup_code or "").strip().upper()
-    return hmac.compare_digest(typed.strip().upper().encode(), expected.encode())
+def _same_code(typed: str, expected: str) -> bool:
+    return hmac.compare_digest(typed.strip().upper().encode(), expected.strip().upper().encode())
+
+
+def _source_for(typed: str) -> str | None:
+    """Origem do cadastro pelo código digitado; None se o código não vale agora."""
+    if _event_is_open() and _same_code(typed, settings.event_signup_code or ""):
+        return settings.event_signup_source
+    if settings.event_signup_dev_code and _same_code(typed, settings.event_signup_dev_code):
+        return DEV_SOURCE
+    return None
 
 
 def _hash_code(code: str) -> str:
@@ -101,9 +112,10 @@ async def create_event_signup(
     background_tasks: BackgroundTasks,
 ):
     """Cria a conta com o código do evento e manda o código de confirmação por e-mail."""
-    if not _event_is_open():
+    if not _event_is_open() and not settings.event_signup_dev_code:
         raise HTTPException(status_code=404, detail="Não há evento com cadastro aberto agora")
-    if not _code_matches(data.code):
+    source = _source_for(data.code)
+    if source is None:
         raise HTTPException(status_code=400, detail="Código do evento inválido")
 
     if await db.scalar(select(User).where(User.email == data.email)):
@@ -119,7 +131,7 @@ async def create_event_signup(
         max_users=EVENT_LICENSE_MAX_USERS,
         max_documents_per_month=EVENT_LICENSE_MAX_DOCUMENTS,
         owner_email=data.email,
-        notes=f"Cadastro no evento {settings.event_signup_source}",
+        notes=f"Cadastro no evento {source}",
     )
     db.add(license)
     await db.flush()
@@ -149,7 +161,7 @@ async def create_event_signup(
     now = utc_now()
     signup = EventSignup(
         user_id=user.id,
-        source=settings.event_signup_source,
+        source=source,
         marketing_opt_in=data.marketing_opt_in,
         marketing_opt_in_at=now if data.marketing_opt_in else None,
         consent_version=CONSENT_VERSION,
