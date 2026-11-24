@@ -53,6 +53,9 @@ async def main(source: str | None, everyone: bool, summary: bool) -> None:
     )
     if source:
         query = query.where(EventSignup.source == source)
+    else:
+        # contas do time (EVENT_SIGNUP_DEV_CODE) não são leads
+        query = query.where(EventSignup.source != "dev")
     if not everyone and not summary:
         query = query.where(EventSignup.marketing_opt_in.is_(True))
 
